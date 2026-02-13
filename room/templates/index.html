@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face ID Security Dashboard</title>
+    <link rel="stylesheet" href="{% static 'room/style.css' %}">
+</head>
+<body>
+
+    <nav>
+        <div class="logo">Room Access Dashboard</div>
+        <a href="#" class="active">Dashboard</a>
+        <a href="#">User Directory</a>
+        <a href="#">Room Management</a>
+        <a href="#">Audit Logs</a>
+        <a href="#">Settings</a>
+    </nav>
+
+    <main>
+        <header>
+            <h1>Overview</h1>
+            <p style="color: var(--text-dim)">Real-time monitoring and access control</p>
+        </header>
+
+        <section class="stats-grid">
+            <div class="stat-card">
+                <h3>Active Occupancy</h3>
+                <div class="value">147</div>
+            </div>
+            <div class="stat-card">
+                <h3>Access Denied (1h)</h3>
+                <div class="value" style="color: var(--danger-red)">3</div>
+            </div>
+            <div class="stat-card">
+                <h3>System Health</h3>
+                <div class="value" style="color: var(--success-green)">Online</div>
+            </div>
+            <div class="stat-card">
+                <h3>Live Bookings</h3>
+                <div class="value">28</div>
+            </div>
+        </section>
+
+        <div class="dashboard-body">
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Live Access Stream</h2>
+                    <span style="color: var(--primary-blue); cursor: pointer; font-size: 0.9rem;">View All</span>
+                </div>
+                
+                <div class="feed-row">
+                    <div class="status-dot granted"></div>
+                    <div class="user-info">
+                        <span class="name">Alex Chen</span>
+                        <span class="meta">Room 301 • Main Entrance</span>
+                    </div>
+                    <div class="timestamp">10:30 AM</div>
+                </div>
+
+                <div class="feed-row">
+                    <div class="status-dot denied"></div>
+                    <div class="user-info">
+                        <span class="name">Unknown User</span>
+                        <span class="meta" style="color: var(--danger-red)">Failed Match • Room 305</span>
+                    </div>
+                    <div class="timestamp">10:28 AM</div>
+                </div>
+
+                <div class="feed-row">
+                    <div class="status-dot granted"></div>
+                    <div class="user-info">
+                        <span class="name">Sarah Lee</span>
+                        <span class="meta">Room 205 • Lab Exit</span>
+                    </div>
+                    <div class="timestamp">10:23 AM</div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Room Occupancy</h2>
+                </div>
+                
+                <div class="room-item">
+                    <div class="room-meta">
+                        <span>Conference Room A</span>
+                        <span>4/5 Slots</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 80%;"></div>
+                    </div>
+                </div>
+
+                <div class="room-item">
+                    <div class="room-meta">
+                        <span>Staff Lounge</span>
+                        <span>5/5 Slots (Full)</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill full" style="width: 100%;"></div>
+                    </div>
+                </div>
+
+                <div class="room-item">
+                    <div class="room-meta">
+                        <span>Server Room</span>
+                        <span>1/5 Slots</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 20%;"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+</body>
+</html>
