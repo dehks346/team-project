@@ -1,0 +1,68 @@
+[
+  {
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+      "username": "alex.chen",
+      "password": "pbkdf2_sha256$600000$defaultpasswordhash",
+      "is_active": true,
+      "email": "alex.chen@company.com",
+      "date_joined": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 2,
+    "fields": {
+      "username": "sarah.lee",
+      "password": "pbkdf2_sha256$600000$defaultpasswordhash",
+      "is_active": true,
+      "email": "sarah.lee@company.com",
+      "date_joined": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 3,
+    "fields": {
+      "username": "mike.wilson",
+      "password": "pbkdf2_sha256$600000$defaultpasswordhash",
+      "is_active": true,
+      "email": "mike.wilson@company.com",
+      "date_joined": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.userprofile",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "name": "Alex Chen",
+      "email": "alex.chen@company.com",
+      "phone_number": "555-0101",
+      "created_at": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.userprofile",
+    "pk": 2,
+    "fields": {
+      "user": 2,
+      "name": "Sarah Lee",
+      "email": "sarah.lee@company.com",
+      "phone_number": "555-0102",
+      "created_at": "2026-02-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.userprofile",
+    "pk": 3,
+    "fields": {
+      "user": 3,
+      "name": "Mike Wilson",
+      "email": "mike.wilson@company.com",
+      "phone_number": "555-0103",
+      "created_at": "2026-02-18T00:00:00Z"
+    }
+  }
+]

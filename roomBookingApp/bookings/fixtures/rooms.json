@@ -1,0 +1,35 @@
+[
+  {
+    "model": "bookings.Room",
+    "pk": 1,
+    "fields": {
+      "location": "Conference Room A - 1st Floor",
+      "capacity": 10,
+      "room_type": "CONF",
+      "is_active": true,
+      "created_at": "2026-02-18T22:30:00Z"
+    }
+  },
+  {
+    "model": "bookings.Room",
+    "pk": 2,
+    "fields": {
+      "location": "Meeting Room B - 2nd Floor",
+      "capacity": 4,
+      "room_type": "MEET",
+      "is_active": true,
+      "created_at": "2026-02-18T22:30:00Z"
+    }
+  },
+  {
+    "model": "bookings.Room",
+    "pk": 3,
+    "fields": {
+      "location": "Training Room - 3rd Floor",
+      "capacity": 20,
+      "room_type": "TRAIN",
+      "is_active": true,
+      "created_at": "2026-02-18T22:30:00Z"
+    }
+  }
+]

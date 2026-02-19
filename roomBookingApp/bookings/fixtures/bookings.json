@@ -1,0 +1,62 @@
+[
+  {
+    "model": "bookings.Booking",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "room": 1,
+      "booking_datetime": "2026-02-19T10:00:00Z",
+      "status": "CONFIRMED",
+      "created_at": "2026-02-18T23:00:00Z",
+      "updated_at": "2026-02-18T23:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.Booking",
+    "pk": 2,
+    "fields": {
+      "user": 2,
+      "room": 3,
+      "booking_datetime": "2026-02-19T14:30:00Z",
+      "status": "CONFIRMED",
+      "created_at": "2026-02-18T23:00:00Z",
+      "updated_at": "2026-02-18T23:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.Booking",
+    "pk": 3,
+    "fields": {
+      "user": 1,
+      "room": 2,
+      "booking_datetime": "2026-02-20T09:00:00Z",
+      "status": "CONFIRMED",
+      "created_at": "2026-02-18T23:00:00Z",
+      "updated_at": "2026-02-18T23:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.Booking",
+    "pk": 4,
+    "fields": {
+      "user": 3,
+      "room": 1,
+      "booking_datetime": "2026-02-20T13:00:00Z",
+      "status": "CONFIRMED",
+      "created_at": "2026-02-18T23:00:00Z",
+      "updated_at": "2026-02-18T23:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.Booking",
+    "pk": 5,
+    "fields": {
+      "user": 2,
+      "room": 3,
+      "booking_datetime": "2026-02-21T11:00:00Z",
+      "status": "PENDING",
+      "created_at": "2026-02-18T23:00:00Z",
+      "updated_at": "2026-02-18T23:00:00Z"
+    }
+  }
+]

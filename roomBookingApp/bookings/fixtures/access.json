@@ -1,0 +1,62 @@
+[
+  {
+    "model": "bookings.Access",
+    "pk": 1,
+    "fields": {
+      "room": 1,
+      "user": 1,
+      "result": "GRANTED",
+      "access_datetime": "2026-02-18T09:15:00Z"
+    }
+  },
+  {
+    "model": "bookings.Access",
+    "pk": 2,
+    "fields": {
+      "room": 1,
+      "user": 2,
+      "result": "GRANTED",
+      "access_datetime": "2026-02-18T09:30:00Z"
+    }
+  },
+  {
+    "model": "bookings.Access",
+    "pk": 3,
+    "fields": {
+      "room": 3,
+      "user": 3,
+      "result": "DENIED",
+      "access_datetime": "2026-02-18T10:05:00Z"
+    }
+  },
+  {
+    "model": "bookings.Access",
+    "pk": 4,
+    "fields": {
+      "room": 2,
+      "user": 1,
+      "result": "GRANTED",
+      "access_datetime": "2026-02-18T11:20:00Z"
+    }
+  },
+  {
+    "model": "bookings.Access",
+    "pk": 5,
+    "fields": {
+      "room": 2,
+      "user": 2,
+      "result": "GRANTED",
+      "access_datetime": "2026-02-18T13:45:00Z"
+    }
+  },
+  {
+    "model": "bookings.Access",
+    "pk": 6,
+    "fields": {
+      "room": 3,
+      "user": 3,
+      "result": "DENIED",
+      "access_datetime": "2026-02-18T14:30:00Z"
+    }
+  }
+]

@@ -1,0 +1,67 @@
+[
+  {
+    "model": "bookings.Record",
+    "pk": 1,
+    "fields": {
+      "booking": 1,
+      "room": 1,
+      "user": 1,
+      "action": "BOOKING_CREATED",
+      "description": "Booking created for Conference Room A",
+      "timestamp": "2026-02-18T23:00:00Z",
+      "details": "{}"
+    }
+  },
+  {
+    "model": "bookings.Record",
+    "pk": 2,
+    "fields": {
+      "booking": 2,
+      "room": 3,
+      "user": 2,
+      "action": "BOOKING_CREATED",
+      "description": "Booking created for Focus Pod",
+      "timestamp": "2026-02-18T23:05:00Z",
+      "details": "{}"
+    }
+  },
+  {
+    "model": "bookings.Record",
+    "pk": 3,
+    "fields": {
+      "booking": null,
+      "room": 1,
+      "user": 1,
+      "action": "ACCESS_ATTEMPT",
+      "description": "Access granted to Room 1",
+      "timestamp": "2026-02-18T09:15:00Z",
+      "details": "{\"result\": \"GRANTED\"}"
+    }
+  },
+  {
+    "model": "bookings.Record",
+    "pk": 4,
+    "fields": {
+      "booking": null,
+      "room": 3,
+      "user": 3,
+      "action": "ACCESS_ATTEMPT",
+      "description": "Access denied to Room 3",
+      "timestamp": "2026-02-18T10:05:00Z",
+      "details": "{\"result\": \"DENIED\"}"
+    }
+  },
+  {
+    "model": "bookings.Record",
+    "pk": 5,
+    "fields": {
+      "booking": 3,
+      "room": 2,
+      "user": 1,
+      "action": "BOOKING_CREATED",
+      "description": "Booking created for Meeting Room B",
+      "timestamp": "2026-02-18T23:10:00Z",
+      "details": "{}"
+    }
+  }
+]
