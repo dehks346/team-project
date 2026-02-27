@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Edit User{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Edit User</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label>Name</label><input type="text" name="name">
+        <label>Email</label><input type="email" name="email">
+        <a href="{% url 'password_change' %}">Change Password</a>
+        <button class="btn btn-primary">Save</button>
+    </form>
+</div>
+{% endblock %}

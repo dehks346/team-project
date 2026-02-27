@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}User Profile{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>User Profile</h2>
+    <p>Name: {{ user_obj.first_name }} {{ user_obj.last_name }}</p>
+    <p>Email: {{ user_obj.email }}</p>
+    <a href="{% url 'user_edit' %}" class="btn btn-outline">Edit Profile</a>
+    <!-- Active bookings, past, rooms, face status, etc. -->
+    <table>
+        <thead><tr><th>Active Bookings</th></tr></thead>
+        <tbody><!-- Rows --></tbody>
+    </table>
+</div>
+{% endblock %}
