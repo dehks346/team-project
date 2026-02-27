@@ -1,0 +1,244 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Django App{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+        --bg: #0f172a;
+        --sidebar: #020617;
+        --card: #1e293b;
+        --primary: #38bdf8;
+        --success: #22c55e;
+        --danger: #ef4444;
+        --text: #f8fafc;
+        --text-dim: #94a3b8;
+        --border: #334155;
+        }
+
+        body {
+        font-family: 'Inter', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+        }
+
+        nav {
+        width: 250px;
+        background: var(--sidebar);
+        padding: 25px;
+        border-right: 1px solid var(--border);
+        overflow-y: auto;
+        }
+
+        nav h2 {
+        color: var(--primary);
+        margin-bottom: 30px;
+        }
+
+        .nav-link {
+        display: block;
+        padding: 12px;
+        color: var(--text-dim);
+        text-decoration: none;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        transition: 0.2s;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+        background: var(--card);
+        color: var(--text);
+        }
+
+        .nav-section {
+        margin-bottom: 20px;
+        }
+
+        .nav-section h3 {
+        color: var(--text-dim);
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        }
+
+        main {
+        flex: 1;
+        padding: 40px;
+        overflow-y: auto;
+        }
+
+        .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        }
+
+        .card {
+        background: var(--card);
+        padding: 25px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
+        }
+
+        .grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        }
+
+        .btn-primary {
+        background: var(--primary);
+        color: #000;
+        }
+
+        .btn-outline {
+        border: 1px solid var(--border);
+        color: var(--text);
+        background: transparent;
+        }
+
+        table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        }
+
+        th {
+        text-align: left;
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        padding: 12px;
+        border-bottom: 1px solid var(--border);
+        }
+
+        td {
+        padding: 12px;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.9rem;
+        }
+
+        .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        }
+
+        .badge-success {
+        background: rgba(34, 197, 94, 0.1);
+        color: var(--success);
+        }
+
+        .badge-danger {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <h2>Dashboard</h2>
+        {% if request.session.debug_no_login %}
+        <span class="badge badge-success">Debug Mode: ON</span>
+        {% else %}
+        <span class="badge badge-danger">Debug Mode: OFF</span>
+        {% endif %}
+        <a href="{% url 'toggle_debug' %}?next={{ request.path }}" class="nav-link">Toggle Debug Mode</a>
+
+        <div class="nav-section">
+            <h3>Auth</h3>
+            <a href="{% url 'login' %}" class="nav-link">Login</a>
+            <a href="{% url 'register' %}" class="nav-link">Register</a>
+            <a href="{% url 'password_reset' %}" class="nav-link">Password Reset</a>
+            <a href="{% url 'password_change' %}" class="nav-link">Password Change</a>
+            <a href="{% url 'logout' %}" class="nav-link">Logout</a>
+        </div>
+
+        <div class="nav-section">
+            <h3>Dashboard</h3>
+            <a href="{% url 'home' %}" class="nav-link">Home</a>
+        </div>
+
+        <div class="nav-section">
+            <h3>User Management</h3>
+            <a href="{% url 'user_profile' %}" class="nav-link">Profile</a>
+            <a href="{% url 'user_edit' %}" class="nav-link">Edit User</a>
+            <a href="{% url 'user_notifications' %}" class="nav-link">Notifications</a>
+            {% if user.is_superuser or request.session.debug_no_login %}
+            <a href="{% url 'user_management' %}" class="nav-link">User Management</a>
+            {% endif %}
+        </div>
+
+        <div class="nav-section">
+            <h3>Room Management</h3>
+            <a href="{% url 'room_list' %}" class="nav-link">Room List</a>
+            <a href="{% url 'room_overview' %}" class="nav-link">Room Overview</a>
+            <a href="{% url 'room_creation' %}" class="nav-link">Create Room</a>
+            <a href="{% url 'room_edit' %}" class="nav-link">Edit Room</a>
+            <a href="{% url 'room_permissions' %}" class="nav-link">Room Permissions</a>
+            <a href="{% url 'room_log' %}" class="nav-link">Room Log</a>
+        </div>
+
+        <div class="nav-section">
+            <h3>Booking System</h3>
+            <a href="{% url 'booking_creation' %}" class="nav-link">Create Booking</a>
+            <a href="{% url 'booking_edit' %}" class="nav-link">Edit Booking</a>
+            <a href="{% url 'my_bookings' %}" class="nav-link">My Bookings</a>
+            <a href="{% url 'booking_invitation' %}" class="nav-link">Booking Invitation</a>
+        </div>
+
+        <div class="nav-section">
+            <h3>Face Recognition</h3>
+            <a href="{% url 'face_enrollment' %}" class="nav-link">Face Enrollment</a>
+            <a href="{% url 'face_verification' %}" class="nav-link">Face Verification</a>
+            <a href="{% url 'access_result' %}" class="nav-link">Access Result</a>
+        </div>
+
+        <div class="nav-section">
+            <h3>Live System</h3>
+            <a href="{% url 'live_feed' %}" class="nav-link">Live Feed</a>
+            <a href="{% url 'system_status' %}" class="nav-link">System Status</a>
+        </div>
+
+        <div class="nav-section">
+            <h3>Admin</h3>
+            {% if user.is_superuser or request.session.debug_no_login %}
+            <a href="{% url 'admin_global_audit_log' %}" class="nav-link">Global Audit Log</a>
+            <a href="{% url 'admin_settings' %}" class="nav-link">Admin Settings</a>
+            <a href="{% url 'reports' %}" class="nav-link">Reports</a>
+            {% endif %}
+        </div>
+
+        <div class="nav-section">
+            <h3>Error & Legal</h3>
+            <a href="{% url 'error_403' %}" class="nav-link">403</a>
+            <a href="{% url 'error_404' %}" class="nav-link">404</a>
+            <a href="{% url 'error_500' %}" class="nav-link">500</a>
+            <a href="{% url 'privacy_biometric_consent' %}" class="nav-link">Privacy & Biometric Consent</a>
+        </div>
+    </nav>
+    <main>
+        <div class="container">
+            {% block content %}
+            {% endblock %}
+        </div>
+    </main>
+</body>
+</html>

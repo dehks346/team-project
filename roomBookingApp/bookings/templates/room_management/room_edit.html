@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Edit Room{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Edit Room</h2>
+    <form method="post">
+        {% csrf_token %}
+        <button class="btn btn-primary">Save</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Edit Booking{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Edit Booking</h2>
+    <form method="post">
+        {% csrf_token %}
+        <button class="btn btn-primary">Save</button>
+        <button class="btn btn-danger">Cancel</button>
+    </form>
+</div>
+{% endblock %}

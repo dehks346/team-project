@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Create Booking{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Create Booking</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label>Room</label><select></select>
+        <label>Date</label><input type="date">
+        <label>Time</label><input type="time">
+        <button class="btn btn-primary">Book</button>
+    </form>
+</div>
+{% endblock %}

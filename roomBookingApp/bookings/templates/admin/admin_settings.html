@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Admin Settings{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Settings</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label>Face Threshold</label><input type="number">
+        <button class="btn btn-primary">Save</button>
+    </form>
+</div>
+{% endblock %}

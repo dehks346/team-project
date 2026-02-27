@@ -1,8 +1,149 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib.auth.views import LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView, PasswordChangeView
+from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
+from django.views.generic import TemplateView, CreateView, UpdateView, ListView, DetailView, View
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth import logout
+from django.urls import reverse_lazy
+from django.contrib.auth.models import User  
 
-# Create your views here.
-from django.shortcuts import render
-from django.http import HttpResponse
 
-def home(request):
-    return render(request, 'index.html')
+class AdminRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_superuser
+
+class DebugLoginRequiredMixin(LoginRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated or request.session.get('debug_no_login', False):
+            return super(LoginRequiredMixin, self).dispatch(request, *args, **kwargs)
+        else:
+            return self.handle_no_permission()
+
+class DebugAdminRequiredMixin(AdminRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if request.session.get('debug_no_login', False) or self.test_func():
+            return super(UserPassesTestMixin, self).dispatch(request, *args, **kwargs)
+        else:
+            return self.handle_no_permission()
+
+class CustomLoginView(LoginView):
+    template_name = 'auth/login.html'
+
+class CustomRegisterView(CreateView):
+    form_class = UserCreationForm 
+    template_name = 'auth/register.html'
+    success_url = reverse_lazy('home')
+
+class CustomPasswordResetView(PasswordResetView):
+    template_name = 'auth/password_reset.html'
+
+class CustomPasswordResetConfirmView(PasswordResetConfirmView):
+    template_name = 'auth/password_reset_confirm.html'
+
+class CustomPasswordChangeView(DebugLoginRequiredMixin, PasswordChangeView):
+    template_name = 'auth/password_change.html'
+    form_class = PasswordChangeForm
+    success_url = reverse_lazy('home')
+
+def custom_logout(request):
+    logout(request)
+    return redirect('login')
+
+class HomeView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/home.html'
+
+class UserProfileView(DebugLoginRequiredMixin, DetailView):
+    model = User
+    template_name = 'user_management/user_profile.html'
+    context_object_name = 'user_obj'
+    def get_object(self):
+        return self.request.user
+
+class UserEditView(DebugLoginRequiredMixin, UpdateView):
+    model = User
+    fields = ['first_name', 'last_name', 'email'] 
+    template_name = 'user_management/user_edit.html'
+    success_url = reverse_lazy('user_profile')
+
+    def get_object(self):
+        return self.request.user
+
+class UserNotificationsView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'user_management/user_notifications.html'
+
+class UserManagementView(DebugAdminRequiredMixin, ListView):
+    model = User
+    template_name = 'user_management/user_management.html'
+    context_object_name = 'users'
+
+class RoomListView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_list.html'
+
+class RoomOverviewView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_overview.html'
+
+class RoomCreationView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_creation.html'
+
+class RoomEditView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_edit.html'
+
+class RoomPermissionsView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_permissions.html'
+
+class RoomLogView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_log.html'
+
+class BookingCreationView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'booking_system/booking_creation.html'
+
+class BookingEditView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'booking_system/booking_edit.html'
+
+class MyBookingsView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'booking_system/my_bookings.html'
+
+class BookingInvitationView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'booking_system/booking_invitation.html'
+
+class FaceEnrollmentView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'face_recognition/face_enrollment.html'
+
+class FaceVerificationView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'face_recognition/face_verification.html'
+
+class AccessResultView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'face_recognition/access_result.html'
+
+class LiveFeedView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'live_system/live_feed.html'
+
+class SystemStatusView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'live_system/system_status.html'
+
+class AdminGlobalAuditLogView(DebugAdminRequiredMixin, TemplateView):
+    template_name = 'admin/admin_global_audit_log.html'
+
+class AdminSettingsView(DebugAdminRequiredMixin, TemplateView):
+    template_name = 'admin/admin_settings.html'
+
+class ReportsView(DebugAdminRequiredMixin, TemplateView):
+    template_name = 'admin/reports.html'
+
+class Error403View(TemplateView):
+    template_name = 'error_legal/403.html'
+
+class Error404View(TemplateView):
+    template_name = 'error_legal/404.html'
+
+class Error500View(TemplateView):
+    template_name = 'error_legal/500.html'
+
+class PrivacyBiometricConsentView(TemplateView):
+    template_name = 'error_legal/privacy_biometric_consent.html'
+
+# DEBUG TOGGLE
+class ToggleDebugView(View):
+    def get(self, request, *args, **kwargs):
+        request.session['debug_no_login'] = not request.session.get('debug_no_login', False)
+        return redirect(request.GET.get('next', 'home'))

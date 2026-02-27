@@ -27,6 +27,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+LOGIN_URL = '/login/'
+
+LOGIN_REDIRECT_URL = '/'  # Redirect to home after login (or wherever you prefer)
+LOGOUT_REDIRECT_URL = '/login/'  # Redirect back to login after logout
+
 
 # Application definition
 
@@ -37,7 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'bookings'
+    'bookings',
+    'room',
 ]
 
 MIDDLEWARE = [

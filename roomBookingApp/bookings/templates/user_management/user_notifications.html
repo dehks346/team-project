@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Notifications</h2>
+    <table>
+        <thead><tr><th>Notification</th><th>Status</th></tr></thead>
+        <tbody><!-- Rows with read/unread --></tbody>
+    </table>
+    <button class="btn btn-outline">Mark All Read</button>
+    <button class="btn btn-outline">Clear</button>
+</div>
+{% endblock %}
