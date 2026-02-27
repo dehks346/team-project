@@ -5,7 +5,77 @@ from django.views.generic import TemplateView, CreateView, UpdateView, ListView,
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth import logout
 from django.urls import reverse_lazy
-from django.contrib.auth.models import User  
+from django.contrib.auth.models import User
+from django.http import StreamingHttpResponse
+import io
+import time
+
+
+# Camera streaming setup
+camera_instance = None
+
+def get_camera():
+    """Get or create a singleton camera instance"""
+    global camera_instance
+    if camera_instance is None:
+        try:
+            from picamera2 import Picamera2
+            camera_instance = Picamera2()
+            config = camera_instance.create_video_configuration(
+                main={"size": (640, 480), "format": "RGB888"}
+            )
+            camera_instance.configure(config)
+            camera_instance.start()
+            time.sleep(0.5)  # Let camera warm up
+        except Exception as e:
+            print(f"Camera initialization error: {e}")
+            camera_instance = None
+    return camera_instance
+
+
+def generate_frames():
+    """Generator function to yield camera frames as JPEG"""
+    camera = get_camera()
+    if camera is None:
+        # Return a placeholder frame if camera fails
+        yield b'--frame\r\n'
+        yield b'Content-Type: text/plain\r\n\r\n'
+        yield b'Camera not available\r\n'
+        return
+    
+    try:
+        import numpy as np
+        from PIL import Image
+        
+        while True:
+            # Capture frame from picamera2
+            frame = camera.capture_array()
+            
+            # Convert to PIL Image and then to JPEG
+            image = Image.fromarray(frame)
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=80)
+            frame_bytes = buffer.getvalue()
+            
+            # Yield frame in multipart format
+            yield b'--frame\r\n'
+            yield b'Content-Type: image/jpeg\r\n\r\n'
+            yield frame_bytes
+            yield b'\r\n'
+            
+            time.sleep(0.03)  # ~30 FPS
+    except GeneratorExit:
+        pass
+    except Exception as e:
+        print(f"Frame generation error: {e}")
+
+
+def video_stream(request):
+    """View to stream video frames"""
+    return StreamingHttpResponse(
+        generate_frames(),
+        content_type='multipart/x-mixed-replace; boundary=frame'
+    )
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -51,6 +121,9 @@ def custom_logout(request):
 
 class HomeView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'dashboard/home.html'
+
+class LiveFeedView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'live_system/live_feed.html'
 
 class UserProfileView(DebugLoginRequiredMixin, DetailView):
     model = User
@@ -114,9 +187,6 @@ class FaceVerificationView(DebugLoginRequiredMixin, TemplateView):
 
 class AccessResultView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'face_recognition/access_result.html'
-
-class LiveFeedView(DebugLoginRequiredMixin, TemplateView):
-    template_name = 'live_system/live_feed.html'
 
 class SystemStatusView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'live_system/system_status.html'
