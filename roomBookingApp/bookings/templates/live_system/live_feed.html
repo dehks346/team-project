@@ -2,6 +2,15 @@
 {% block title %}Live Feed{% endblock %}
 {% block content %}
 <div class="card">
-    <h2>Live Feed</h2>
+    <h2>Live Camera Feed</h2>
+    <div style="margin-top: 20px;">
+        <img src="{% url 'video_feed' %}" 
+             style="width: 100%; max-width: 800px; border: 2px solid #ddd; border-radius: 8px;" 
+             alt="Live Camera Feed">
+    </div>
+    <div style="margin-top: 15px; color: #666;">
+        <p><strong>Camera Status:</strong> <span id="camera-status">Active</span></p>
+        <p><em>Streaming live from camera</em></p>
+    </div>
 </div>
 {% endblock %}

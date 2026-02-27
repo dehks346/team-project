@@ -5,7 +5,10 @@ from django.views.generic import TemplateView, CreateView, UpdateView, ListView,
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth import logout
 from django.urls import reverse_lazy
-from django.contrib.auth.models import User  
+from django.contrib.auth.models import User
+from django.http import StreamingHttpResponse
+import cv2
+import threading  
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -141,6 +144,64 @@ class Error500View(TemplateView):
 
 class PrivacyBiometricConsentView(TemplateView):
     template_name = 'error_legal/privacy_biometric_consent.html'
+
+
+# CAMERA STREAMING
+class VideoCamera:
+    """
+    Class to handle video camera operations with thread-safe frame access.
+    """
+    def __init__(self):
+        # Initialize camera - 0 for default camera, or use IP camera URL
+        self.video = cv2.VideoCapture(0)
+        self.lock = threading.Lock()
+        
+        # For Raspberry Pi camera module, you can use:
+        # self.video = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        
+        # Or for IP camera/RTSP stream:
+        # self.video = cv2.VideoCapture('rtsp://username:password@ip_address:port/stream')
+        
+    def __del__(self):
+        self.video.release()
+        
+    def get_frame(self):
+        """
+        Capture a frame from the camera and encode it as JPEG.
+        """
+        with self.lock:
+            success, image = self.video.read()
+            if not success:
+                return None
+            # Encode frame as JPEG
+            ret, jpeg = cv2.imencode('.jpg', image)
+            return jpeg.tobytes()
+
+
+def gen_frames(camera):
+    """
+    Generator function to yield video frames in multipart format.
+    """
+    while True:
+        frame = camera.get_frame()
+        if frame is None:
+            break
+        # Yield frame in multipart format
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+
+class VideoFeedView(DebugLoginRequiredMixin, View):
+    """
+    View to stream video frames to the client.
+    """
+    def get(self, request, *args, **kwargs):
+        camera = VideoCamera()
+        return StreamingHttpResponse(
+            gen_frames(camera),
+            content_type='multipart/x-mixed-replace; boundary=frame'
+        )
+
 
 # DEBUG TOGGLE
 class ToggleDebugView(View):

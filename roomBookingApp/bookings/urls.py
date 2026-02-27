@@ -7,7 +7,7 @@ from .views import (
     MyBookingsView, BookingInvitationView, FaceEnrollmentView, FaceVerificationView,
     AccessResultView, LiveFeedView, SystemStatusView, AdminGlobalAuditLogView,
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
-    PrivacyBiometricConsentView, ToggleDebugView
+    PrivacyBiometricConsentView, VideoFeedView, ToggleDebugView
 )
 
 urlpatterns = [
@@ -42,6 +42,7 @@ urlpatterns = [
     path('face/access_result/', AccessResultView.as_view(), name='access_result'),
 
     path('live/feed/', LiveFeedView.as_view(), name='live_feed'),
+    path('live/video_feed/', VideoFeedView.as_view(), name='video_feed'),
     path('live/status/', SystemStatusView.as_view(), name='system_status'),
 
     path('admin/audit_log/', AdminGlobalAuditLogView.as_view(), name='admin_global_audit_log'),
