@@ -2,6 +2,15 @@
 {% block title %}Live Feed{% endblock %}
 {% block content %}
 <div class="card">
-    <h2>Live Feed</h2>
+    <h2>Live Camera Feed</h2>
+    <div style="text-align: center; padding: 20px;">
+        <img src="{% url 'video_stream' %}" 
+             alt="Live Camera Feed" 
+             style="max-width: 100%; height: auto; border: 2px solid #333; border-radius: 8px;">
+    </div>
+    <div style="padding: 10px; text-align: center; color: #666;">
+        <p>Live feed from Raspberry Pi Camera</p>
+        <p style="font-size: 12px;">If the feed doesn't load, make sure the camera is connected and the server has proper permissions.</p>
+    </div>
 </div>
 {% endblock %}

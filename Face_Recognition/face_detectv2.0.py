@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import time
+from pathlib import Path
 
 
 
@@ -24,9 +25,31 @@ label_map = {
 # ========================
 # LOAD FACE DETECTOR
 # ========================
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+def resolve_haar_cascade_path():
+    # Prefer OpenCV-provided data path when available, else fall back to common system paths.
+    data_path = getattr(cv2, "data", None)
+    if data_path and getattr(data_path, "haarcascades", None):
+        return str(Path(data_path.haarcascades) / "haarcascade_frontalface_default.xml")
+
+    candidates = [
+        "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+        "/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml",
+    ]
+    for candidate in candidates:
+        if Path(candidate).exists():
+            return candidate
+
+    return None
+
+
+cascade_path = resolve_haar_cascade_path()
+if not cascade_path:
+    raise RuntimeError(
+        "Could not locate haarcascade_frontalface_default.xml. "
+        "Install OpenCV data files or set a valid path."
+    )
+
+face_cascade = cv2.CascadeClassifier(cascade_path)
 
 
 # ========================
@@ -38,12 +61,12 @@ print("Starting face_detect")
 
 # === LOAD OPENCV FACE DETECTOR ===
 # Load the pre-trained Haar Cascade face detector
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(cascade_path)
 print("Face detector loaded")
 
 # === CAMERA SETUP ===
 # Change 0 to 1 if you have multiple webcams
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(2)
 time.sleep(1)
 
 if not cap.isOpened():
