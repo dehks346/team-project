@@ -1,12 +1,140 @@
 {% extends 'base.html' %}
 {% block title %}Room List{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Rooms</h2>
-    <input type="text" placeholder="Search rooms">
-    <table>
-        <thead><tr><th>Name</th><th>Capacity</th><th>Status</th></tr></thead>
-        <tbody>></tbody>
-    </table>
+<div class="card" style="max-width: 1100px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="margin: 0;">All Rooms</h2>
+        
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <input type="text" id="room-search" placeholder="Search rooms..." 
+                   onkeyup="filterRooms()" 
+                   style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 260px;">
+
+            <select id="room-filter" onchange="filterRooms()" 
+                    style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="all">All Rooms</option>
+                <option value="available">Available Now</option>
+                <option value="occupied">Currently Occupied</option>
+                <option value="facerec">Face Recognition Required</option>
+            </select>
+
+            {% if user.is_superuser or request.session.debug_no_login %}
+            <a href="{% url 'room_creation' %}" class="btn btn-primary" style="padding: 12px 20px;">
+                + New Room
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="rooms-grid" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+
+        <div class="card room-card" data-name="conference room a" data-status="available" data-facerec="true">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <h3 style="margin: 0;">Conference Room A</h3>
+                <span class="badge badge-success">Available Now</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
+                <span>👥 12</span>
+                <span style="color: var(--success);">● Face Rec Required</span>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
+                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
+            </div>
+        </div>
+
+        <div class="card room-card" data-name="lab 3" data-status="occupied" data-facerec="true">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <h3 style="margin: 0;">Lab 3</h3>
+                <span class="badge badge-danger">Occupied</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
+                <span>👥 8</span>
+                <span style="color: var(--success);">● Face Rec Required</span>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
+                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
+            </div>
+        </div>
+
+        <div class="card room-card" data-name="meeting pod b" data-status="available" data-facerec="false">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <h3 style="margin: 0;">Meeting Pod B</h3>
+                <span class="badge badge-success">Available Now</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
+                <span>👥 4</span>
+                <span style="color: var(--text-dim);">○ Face Rec Optional</span>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
+                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
+            </div>
+        </div>
+
+        <div class="card room-card" data-name="creative studio" data-status="available" data-facerec="true">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <h3 style="margin: 0;">Creative Studio</h3>
+                <span class="badge badge-success">Available Now</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
+                <span>👥 10</span>
+                <span style="color: var(--success);">● Face Rec Required</span>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
+                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">🏠</div>
+        <p>No rooms match your search.</p>
+    </div>
+
 </div>
+
+<script>
+    function filterRooms() {
+        const searchTerm = document.getElementById('room-search').value.toLowerCase().trim();
+        const filterValue = document.getElementById('room-filter').value;
+        const cards = document.querySelectorAll('.room-card');
+        let visible = 0;
+
+        cards.forEach(card => {
+            const name = card.getAttribute('data-name');
+            const status = card.getAttribute('data-status');
+            const facerec = card.getAttribute('data-facerec');
+
+            const matchesSearch = name.includes(searchTerm);
+            let matchesFilter = true;
+
+            if (filterValue === 'available') matchesFilter = status === 'available';
+            if (filterValue === 'occupied') matchesFilter = status === 'occupied';
+            if (filterValue === 'facerec') matchesFilter = facerec === 'true';
+
+            if (matchesSearch && matchesFilter) {
+                card.style.display = 'block';
+                visible++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+    }
+</script>
 {% endblock %}

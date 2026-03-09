@@ -1,13 +1,128 @@
 {% extends 'base.html' %}
 {% block title %}Room Log{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Audit Log</h2>
-    <table>
-        <thead><tr><th>Event</th><th>Date</th></tr></thead>
-        <tbody></tbody>
+<div class="card" style="max-width: 1200px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h2 style="margin: 0;">Audit Log</h2>
+            <p style="margin: 6px 0 0; color: var(--text-dim);">Conference Room A • Full history</p>
+        </div>
+        
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <input type="text" id="log-search" placeholder="Search events..." 
+                   onkeyup="filterLog()" 
+                   style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 260px;">
+
+            <select id="event-filter" onchange="filterLog()" 
+                    style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="all">All Events</option>
+                <option value="access">Access Attempts</option>
+                <option value="booking">Booking Changes</option>
+                <option value="permission">Permission Changes</option>
+            </select>
+
+            <button onclick="exportRoomLog()" class="btn btn-outline">📤 Export CSV</button>
+        </div>
+    </div>
+
+    <table id="room-log-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Event</th>
+                <th>User / System</th>
+                <th>Details</th>
+                <th>Result</th>
+            </tr>
+        </thead>
+        <tbody id="log-body">
+            <tr data-type="access">
+                <td><small>2026-03-07 14:32:15</small></td>
+                <td><strong>Face Recognition</strong></td>
+                <td>Alex Chen</td>
+                <td>Access granted (98% match)</td>
+                <td><span class="badge badge-success">Granted</span></td>
+            </tr>
+
+            <tr data-type="access">
+                <td><small>2026-03-07 13:19:44</small></td>
+                <td><strong>Failed Access</strong></td>
+                <td>Unknown</td>
+                <td>Face match only 42%</td>
+                <td><span class="badge badge-danger">Denied</span></td>
+            </tr>
+
+            <tr data-type="booking">
+                <td><small>2026-03-07 11:05:22</small></td>
+                <td><strong>Booking Created</strong></td>
+                <td>Sarah Lee</td>
+                <td>Team Sync • 10:00–11:00 tomorrow</td>
+                <td><span class="badge badge-success">Confirmed</span></td>
+            </tr>
+
+            <tr data-type="permission">
+                <td><small>2026-03-06 22:48:10</small></td>
+                <td><strong>Permission Added</strong></td>
+                <td>Alex Chen (Admin)</td>
+                <td>Marketing Team granted access</td>
+                <td><span class="badge badge-success">Updated</span></td>
+            </tr>
+
+            <tr data-type="access">
+                <td><small>2026-03-06 09:12:05</small></td>
+                <td><strong>Face Recognition</strong></td>
+                <td>System</td>
+                <td>Door unlocked via face match</td>
+                <td><span class="badge badge-success">Granted</span></td>
+            </tr>
+
+        </tbody>
     </table>
-    <button class="btn btn-outline">Export CSV</button>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">📜</div>
+        <p>No log entries match your filters.</p>
+    </div>
+
+    <div style="margin-top: 20px; text-align: right; color: var(--text-dim); font-size: 0.85rem;">
+        Room-specific audit trail • Data retention: 90 days
+    </div>
+
 </div>
+
+<script>
+    function filterLog() {
+        const searchTerm = document.getElementById('log-search').value.toLowerCase().trim();
+        const typeFilter = document.getElementById('event-filter').value;
+        const rows = document.querySelectorAll('#log-body tr');
+        let visible = 0;
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const type = row.getAttribute('data-type');
+
+            const matchesSearch = text.includes(searchTerm);
+            const matchesType = typeFilter === 'all' || type === typeFilter;
+
+            if (matchesSearch && matchesType) {
+                row.style.display = 'table-row';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    function exportRoomLog() {
+        alert("📤 Room audit log exported as conference-room-a-log-2026-03-07.csv\n\n(Backend CSV export ready)");
+    }
+
+    window.onload = () => {
+        filterLog();
+    };
+</script>
 {% endblock %}
-HTML

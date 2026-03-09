@@ -1,10 +1,130 @@
 {% extends 'base.html' %}
 {% block title %}Room Overview{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Room Details</h2>
-    <p>Capacity: X</p>
-    <p>Equipment: List</p>
-    <a href="#" class="btn btn-primary">Create Booking</a>
+<div class="card" style="max-width: 1200px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; flex-wrap: wrap; gap: 20px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <h1 style="margin: 0; font-size: 2.2rem;">Conference Room A</h1>
+                <span class="badge badge-success" style="font-size: 1rem; padding: 8px 16px;">● Available Now</span>
+            </div>
+            <p style="margin: 6px 0 0; color: var(--text-dim); font-size: 1.1rem;">
+                Floor 3 • Building West Wing
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="padding: 14px 24px;">
+                📅 Create Booking
+            </a>
+            <a href="{% url 'room_permissions' %}" class="btn btn-outline" style="padding: 14px 24px;">
+                👥 Manage Access
+            </a>
+            <a href="{% url 'room_log' %}" class="btn btn-outline" style="padding: 14px 24px;">
+                📋 View Audit Log
+            </a>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 25px;">
+
+        <div>
+            <div class="card" style="margin-bottom: 25px;">
+                <h3 style="margin-top: 0;">Room Details</h3>
+                <p style="color: var(--text-dim); line-height: 1.6;">
+                    Modern conference room with natural light, perfect for team meetings and presentations.
+                </p>
+                
+                <h4 style="margin: 25px 0 12px 0;">Equipment</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">65" 4K TV</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">HDMI + Wireless Casting</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">Conference Speakerphone</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">Whiteboard + Markers</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">USB-C Charging Ports</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">Upcoming Bookings</h3>
+                    <a href="{% url 'my_bookings' %}" class="btn btn-outline" style="font-size: 0.85rem;">Full Calendar →</a>
+                </div>
+                <table>
+                    <thead><tr><th>Time</th><th>Booked By</th><th>Duration</th></tr></thead>
+                    <tbody>
+                        <tr><td>Today 14:00 – 15:30</td><td>Alex Chen (You)</td><td>1h 30m</td></tr>
+                        <tr><td>Tomorrow 10:00 – 11:00</td><td>Sarah Lee</td><td>1h</td></tr>
+                        <tr><td>Mar 8 13:30 – 15:00</td><td>Marketing Team</td><td>1h 30m</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 25px;">
+
+            <div class="card">
+                <h3 style="margin-top: 0;">Quick Info</h3>
+                <table style="width: 100%;">
+                    <tr><td style="color: var(--text-dim);">Capacity</td><td style="text-align: right; font-weight: 600;">12 people</td></tr>
+                    <tr><td style="color: var(--text-dim);">Face Recognition</td><td style="text-align: right;"><span class="badge badge-success">Required</span></td></tr>
+                    <tr><td style="color: var(--text-dim);">Operating Hours</td><td style="text-align: right;">7:00 – 22:00</td></tr>
+                    <tr><td style="color: var(--text-dim);">Current Occupancy</td><td style="text-align: right; color: var(--success);">3 / 12</td></tr>
+                </table>
+            </div>
+
+            <div class="card" style="flex: 1;">
+                <h3 style="margin-bottom: 15px;">People with Access</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: var(--primary); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">AC</div>
+                        <div style="flex: 1;">
+                            <strong>Alex Chen</strong><br>
+                            <small style="color: var(--text-dim);">Owner • Full Access</small>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: #22c55e; color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">SL</div>
+                        <div style="flex: 1;">
+                            <strong>Sarah Lee</strong><br>
+                            <small style="color: var(--text-dim);">Team Lead</small>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: #a78bfa; color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">MT</div>
+                        <div style="flex: 1;">
+                            <strong>Marketing Team</strong><br>
+                            <small style="color: var(--text-dim);">Group Access</small>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="alert('Access management ready for backend integration')" class="btn btn-outline" style="width: 100%; margin-top: 20px;">
+                    + Invite More Users
+                </button>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 12px;">Recent Activity</h3>
+                <div style="font-size: 0.85rem; color: var(--text-dim); line-height: 1.7;">
+                    <div>✅ Alex Chen entered • 11:42</div>
+                    <div>❌ Unknown face denied • 10:15</div>
+                    <div>📅 Booking created by Sarah • Yesterday</div>
+                </div>
+                <a href="{% url 'room_log' %}" class="btn btn-outline" style="width: 100%; margin-top: 15px; font-size: 0.85rem;">View Full Audit Log →</a>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<div class="card" style="margin-top: 25px;">
+    <h3>Availability Calendar (March 2026)</h3>
+    <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 10px; text-align: center; color: var(--text-dim); font-size: 1.1rem;">
+        [Interactive calendar would go here — powered by django-calendars or FullCalendar in production]
+        <br><small>Click any date to create a booking</small>
+    </div>
 </div>
 {% endblock %}

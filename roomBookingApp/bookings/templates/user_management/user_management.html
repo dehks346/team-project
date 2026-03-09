@@ -1,16 +1,139 @@
 {% extends 'base.html' %}
 {% block title %}User Management{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>User Management</h2>
-    <input type="text" placeholder="Search users">
-    <table>
-        <thead><tr><th>Name</th><th>Role</th><th>Actions</th></tr></thead>
-        <tbody>
+<div class="card" style="max-width: 1200px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="margin: 0;">User Management</h2>
+        
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <input type="text" id="user-search" placeholder="Search by name or email..." 
+                   onkeyup="filterUsers()" 
+                   style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 280px;">
+
+            <select id="role-filter" onchange="filterUsers()" 
+                    style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="all">All Roles</option>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+
+            <a href="{% url 'register' %}" class="btn btn-primary">+ Add New User</a>
+        </div>
+    </div>
+
+    <table id="users-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Face Status</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="users-body">
             {% for user in users %}
-            <tr><td>{{ user.username }}</td><td>{{ user.role }}</td><td><a class="btn btn-outline">Edit</a></td></tr>
+            <tr data-role="{{ user.is_superuser|yesno:'admin,user' }}">
+                <td><strong>{{ user.first_name }} {{ user.last_name }}</strong></td>
+                <td>{{ user.email }}</td>
+                <td>
+                    {% if user.is_superuser %}
+                    <span class="badge" style="background: rgba(239,68,68,0.2); color: var(--danger);">Admin</span>
+                    {% else %}
+                    <span class="badge badge-success">User</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.profile.face_enrolled|default:False %}
+                    <span class="badge badge-success">Enrolled</span>
+                    {% else %}
+                    <span class="badge badge-danger">Not Enrolled</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge {% if user.is_active %}badge-success{% else %}badge-danger{% endif %}">
+                        {{ user.is_active|yesno:'Active,Deactivated' }}
+                    </span>
+                </td>
+                <td><small>{{ user.last_login|date:"M d, Y" }}</small></td>
+                <td>
+                    <a href="{% url 'user_edit' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
+                    <button onclick="toggleActive(this)" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">
+                        {{ user.is_active|yesno:'Deactivate,Activate' }}
+                    </button>
+                    <button onclick="deleteUser(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Delete</button>
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">👥</div>
+        <p>No users match your search.</p>
+    </div>
+
 </div>
+
+<script>
+    function filterUsers() {
+        const searchTerm = document.getElementById('user-search').value.toLowerCase().trim();
+        const roleFilter = document.getElementById('role-filter').value;
+        const rows = document.querySelectorAll('#users-body tr');
+        let visible = 0;
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const role = row.getAttribute('data-role');
+
+            const matchesSearch = text.includes(searchTerm);
+            const matchesRole = roleFilter === 'all' || role === roleFilter;
+
+            if (matchesSearch && matchesRole) {
+                row.style.display = 'table-row';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    function toggleActive(btn) {
+        if (confirm("Change user status?")) {
+            if (btn.textContent.trim() === "Deactivate") {
+                btn.textContent = "Activate";
+                btn.closest('tr').querySelector('.badge').classList.replace('badge-success', 'badge-danger');
+                btn.closest('tr').querySelector('.badge').textContent = 'Deactivated';
+            } else {
+                btn.textContent = "Deactivate";
+                btn.closest('tr').querySelector('.badge').classList.replace('badge-danger', 'badge-success');
+                btn.closest('tr').querySelector('.badge').textContent = 'Active';
+            }
+        }
+    }
+
+    function deleteUser(btn) {
+        if (confirm("⚠️ Permanently delete this user?\nThis action cannot be undone.")) {
+            const row = btn.closest('tr');
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => {
+                row.remove();
+                if (document.querySelectorAll('#users-body tr').length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                }
+            }, 300);
+        }
+    }
+
+    window.onload = () => {
+        filterUsers();
+    };
+</script>
 {% endblock %}

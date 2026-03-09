@@ -1,24 +1,211 @@
 {% extends 'base.html' %}
-{% block title %}Home{% endblock %}
+{% block title %}Dashboard{% endblock %}
+
 {% block content %}
-<div class="grid">
-    <div class="card">
-        <h3>Today's Bookings</h3>
-        <!-- List bookings -->
-    </div>
-    <div class="card">
-        <h3>Upcoming Bookings</h3>
-        <!-- List -->
-    </div>
-    <div class="card">
-        <h3>Rooms You Manage</h3>
-        <!-- List -->
-    </div>
-    <div class="card">
-        <h3>Rooms You Can Access</h3>
-        <!-- List -->
+<div class="card" style="margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 style="margin: 0; font-size: 2rem;">Good morning, {{ user.first_name|default:user.username|default:"User" }} 👋</h1>
+            <p style="color: var(--text-dim); margin: 5px 0 0;">Today is <strong id="current-date"></strong> • Room Booking System</p>
+        </div>
+        
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; max-width: 420px;">
+            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                <div style="font-size: 1.8rem; font-weight: 600; color: var(--primary);">3</div>
+                <small style="color: var(--text-dim);">Bookings Today</small>
+            </div>
+            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                <div style="font-size: 1.8rem; font-weight: 600; color: var(--success);">12</div>
+                <small style="color: var(--text-dim);">Rooms Available</small>
+            </div>
+            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                <div style="font-size: 1.8rem; font-weight: 600; color: var(--danger);">2</div>
+                <small style="color: var(--text-dim);">Pending Invites</small>
+            </div>
+        </div>
     </div>
 </div>
-<a href="#" class="btn btn-primary">Quick Create Booking</a>
-<a href="#" class="btn btn-primary">Quick Create Room</a>
+
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px;">
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Today's Bookings</h3>
+            <a href="{% url 'my_bookings' %}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">All Bookings →</a>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Room</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Conference Room A</strong></td>
+                    <td>09:00 – 10:30</td>
+                    <td><span class="badge badge-success">Confirmed</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Lab 3</strong></td>
+                    <td>11:00 – 12:00</td>
+                    <td><span class="badge badge-success">Confirmed</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Meeting Pod B</strong></td>
+                    <td>14:00 – 15:00</td>
+                    <td><span class="badge badge-success">Confirmed</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Upcoming This Week</h3>
+            <a href="{% url 'my_bookings' %}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">View Calendar →</a>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Room</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Conference Room A</strong></td>
+                    <td>Mar 7</td>
+                    <td>10:00 – 11:00</td>
+                </tr>
+                <tr>
+                    <td><strong>Lab 3</strong></td>
+                    <td>Mar 8</td>
+                    <td>13:30 – 15:00</td>
+                </tr>
+                <tr>
+                    <td><strong>Meeting Pod B</strong></td>
+                    <td>Mar 10</td>
+                    <td>09:30 – 10:30</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Rooms You Manage</h3>
+            <span class="badge badge-success">3 Active</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Conference Room A</strong><br>
+                    <small style="color: var(--text-dim);">Capacity 12 • Face Rec: Required</small>
+                </div>
+                <span class="badge badge-success">Online</span>
+            </div>
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Lab 3</strong><br>
+                    <small style="color: var(--text-dim);">Capacity 8 • Face Rec: Required</small>
+                </div>
+                <span class="badge badge-success">Online</span>
+            </div>
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Meeting Pod B</strong><br>
+                    <small style="color: var(--text-dim);">Capacity 4 • Face Rec: Optional</small>
+                </div>
+                <span class="badge badge-success">Online</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Rooms You Can Access</h3>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div><strong>Server Room</strong></div>
+                <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
+            </div>
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div><strong>Creative Studio</strong></div>
+                <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
+            </div>
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div><strong>Breakout Room 1</strong></div>
+                <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+    <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 14px 28px;">
+        📅 Quick Create Booking
+    </a>
+    
+    {% if user.is_superuser or request.session.debug_no_login %}
+    <a href="{% url 'room_creation' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 14px 28px;">
+        🏠 Quick Create Room
+    </a>
+    {% endif %}
+    
+    <a href="{% url 'face_enrollment' %}" class="btn btn-outline" style="font-size: 1.1rem; padding: 14px 28px;">
+        👤 Enroll Face Data
+    </a>
+</div>
+
+<div class="grid" style="margin-top: 30px; grid-template-columns: 1fr 1fr;">
+    
+    <div class="card">
+        <h3 style="margin-bottom: 15px;">Pending Invites</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                <div>
+                    <strong>Team Sync – Conference Room A</strong><br>
+                    <small style="color: var(--text-dim);">Tomorrow 10:00 • Invited by Sarah</small>
+                </div>
+                <div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="btn btn-success" style="padding: 6px 12px; font-size: 0.85rem;">Accept</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom: 15px;">Recent Access Attempts</h3>
+        <table>
+            <thead>
+                <tr><th>Room</th><th>Person</th><th>Result</th><th>Time</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Conference Room A</td>
+                    <td>Alex Chen</td>
+                    <td><span class="badge badge-success">Granted</span></td>
+                    <td>Just now</td>
+                </tr>
+                <tr>
+                    <td>Lab 3</td>
+                    <td>Unknown</td>
+                    <td><span class="badge badge-danger">Denied</span></td>
+                    <td>4 min ago</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric'
+    });
+</script>
 {% endblock %}

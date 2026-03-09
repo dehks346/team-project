@@ -1,10 +1,127 @@
 {% extends 'base.html' %}
 {% block title %}Booking Invitation{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Invitation</h2>
-    <p>Details: ...</p>
-    <button class="btn btn-success">Accept</button>
-    <button class="btn btn-danger">Decline</button>
+<div style="max-width: 520px; margin: 60px auto 40px auto;">
+
+    <div class="card">
+        <div style="text-align: center; margin-bottom: 25px;">
+            <div style="font-size: 3.2rem; margin-bottom: 10px;">📨</div>
+            <h2 style="margin: 0;">You're Invited!</h2>
+            <p style="color: var(--text-dim); margin-top: 6px;">Team Sync Meeting</p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 10px; margin-bottom: 25px;">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="color: var(--text-dim); padding-bottom: 8px;">Room</td>
+                    <td style="text-align: right; font-weight: 600;">Conference Room A</td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-dim); padding-bottom: 8px;">Date &amp; Time</td>
+                    <td style="text-align: right; font-weight: 600;">March 10, 2026 • 10:00 – 11:00</td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-dim); padding-bottom: 8px;">Host</td>
+                    <td style="text-align: right;">Sarah Lee</td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-dim);">Duration</td>
+                    <td style="text-align: right;">1 hour</td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="color: var(--text-dim); font-size: 0.9rem;">Agenda</label>
+            <p style="margin: 8px 0 0; color: var(--text);">Quick team sync + Q3 planning. Please bring your laptop.</p>
+        </div>
+
+        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 14px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+            <small style="color: var(--text-dim);">This invitation expires in</small><br>
+            <strong id="countdown" style="font-size: 1.8rem; font-weight: 700; color: var(--danger);">23h 14m</strong>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <button onclick="acceptInvitation()" 
+                    class="btn btn-success" style="flex: 1; padding: 16px; font-size: 1.1rem;">
+                ✅ Accept Invitation
+            </button>
+            <button onclick="declineInvitation()" 
+                    class="btn btn-danger" style="flex: 1; padding: 16px; font-size: 1.1rem;">
+                ❌ Decline
+            </button>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <button onclick="addToCalendar()" 
+                    class="btn btn-outline" style="width: 100%; padding: 12px;">
+                📅 Add to Calendar
+            </button>
+        </div>
+    </div>
+
+    <div id="response-message" style="display: none; margin-top: 25px; text-align: center;"></div>
+
 </div>
+
+<script>
+
+    function startCountdown() {
+        let timeLeft = 23 * 3600 + 14 * 60; 
+        
+        const countdownEl = document.getElementById('countdown');
+        
+        const timer = setInterval(() => {
+            const hours = Math.floor(timeLeft / 3600);
+            const minutes = Math.floor((timeLeft % 3600) / 60);
+            
+            countdownEl.textContent = `${hours}h ${minutes}m`;
+            
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                countdownEl.textContent = "EXPIRED";
+                countdownEl.style.color = "#ef4444";
+            }
+            timeLeft--;
+        }, 60000);
+    }
+
+    function acceptInvitation() {
+        const msg = document.getElementById('response-message');
+        msg.innerHTML = `
+            <div style="background: rgba(34,197,94,0.15); border: 1px solid var(--success); padding: 25px; border-radius: 12px;">
+                <h3 style="color: var(--success); margin: 0 0 10px 0;">🎉 You're going!</h3>
+                <p style="color: var(--text-dim);">Booking added to your schedule.<br>
+                Face recognition will be required at entry.</p>
+                <button onclick="window.location.href='{% url 'my_bookings' %}'" class="btn btn-primary" style="margin-top: 15px;">
+                    View My Bookings
+                </button>
+            </div>
+        `;
+        msg.style.display = 'block';
+        document.querySelector('.card').style.opacity = '0.6';
+    }
+
+    function declineInvitation() {
+        const msg = document.getElementById('response-message');
+        msg.innerHTML = `
+            <div style="background: rgba(239,68,68,0.15); border: 1px solid var(--danger); padding: 25px; border-radius: 12px;">
+                <h3 style="color: var(--danger); margin: 0 0 10px 0;">Invitation Declined</h3>
+                <p style="color: var(--text-dim);">Thank you for letting us know.</p>
+                <button onclick="window.location.href='{% url 'home' %}'" class="btn btn-primary" style="margin-top: 15px;">
+                    Back to Dashboard
+                </button>
+            </div>
+        `;
+        msg.style.display = 'block';
+        document.querySelector('.card').style.opacity = '0.6';
+    }
+
+    function addToCalendar() {
+        alert("📅 Added to your calendar!\n\n(In production this would generate .ics file or open Google/Outlook link)");
+    }
+
+    window.onload = startCountdown;
+</script>
 {% endblock %}

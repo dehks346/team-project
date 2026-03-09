@@ -1,11 +1,135 @@
 {% extends 'base.html' %}
 {% block title %}My Bookings{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>My Bookings</h2>
-    <table>
-        <thead><tr><th>Room</th><th>Date</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
+<div class="card" style="max-width: 1100px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="margin: 0;">My Bookings</h2>
+        
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="{% url 'booking_creation' %}" class="btn btn-primary">+ New Booking</a>
+            <a href="#" onclick="toggleCalendarView()" class="btn btn-outline">📅 Calendar View</a>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 25px;">
+        <button onclick="switchTab(0)" id="tab-0" 
+                class="tab-button active" style="background: none; border: none; padding: 10px 0; font-weight: 600; border-bottom: 3px solid var(--primary); color: var(--text);">Upcoming</button>
+        <button onclick="switchTab(1)" id="tab-1" 
+                class="tab-button" style="background: none; border: none; padding: 10px 0; font-weight: 600; color: var(--text-dim);">Past</button>
+    </div>
+
+    <table id="bookings-table">
+        <thead>
+            <tr>
+                <th>Room</th>
+                <th>Date &amp; Time</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="upcoming-body">
+            <tr data-status="upcoming">
+                <td><strong>Conference Room A</strong></td>
+                <td>Today, Mar 7 • 14:00 – 15:30</td>
+                <td>1h 30m</td>
+                <td><span class="badge badge-success">Confirmed</span></td>
+                <td>
+                    <a href="{% url 'booking_edit' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
+                    <button onclick="cancelBooking(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Cancel</button>
+                </td>
+            </tr>
+            <tr data-status="upcoming">
+                <td><strong>Lab 3</strong></td>
+                <td>Mar 8 • 09:00 – 10:00</td>
+                <td>1h</td>
+                <td><span class="badge badge-success">Confirmed</span></td>
+                <td>
+                    <a href="{% url 'booking_edit' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
+                    <button onclick="cancelBooking(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Cancel</button>
+                </td>
+            </tr>
+        </tbody>
+
+        <tbody id="past-body" style="display: none;">
+            <tr data-status="past">
+                <td><strong>Meeting Pod B</strong></td>
+                <td>Feb 28 • 11:00 – 12:30</td>
+                <td>1h 30m</td>
+                <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">Completed</span></td>
+                <td>
+                    <a href="{% url 'room_overview' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
+                </td>
+            </tr>
+            <tr data-status="past">
+                <td><strong>Creative Studio</strong></td>
+                <td>Feb 25 • 14:00 – 14:45</td>
+                <td>45m</td>
+                <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">Completed</span></td>
+                <td>
+                    <a href="{% url 'room_overview' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
+                </td>
+            </tr>
+        </tbody>
     </table>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.8rem; margin-bottom: 15px;">📅</div>
+        <p>No bookings found in this tab.</p>
+        <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="margin-top: 15px;">Create your first booking</a>
+    </div>
+
 </div>
+
+<script>
+    function switchTab(tabIndex) {
+        document.querySelectorAll('.tab-button').forEach((btn, i) => {
+            btn.classList.toggle('active', i === tabIndex);
+        });
+
+        const upcoming = document.getElementById('upcoming-body');
+        const past = document.getElementById('past-body');
+        
+        if (tabIndex === 0) {
+            upcoming.style.display = 'table-row-group';
+            past.style.display = 'none';
+        } else {
+            upcoming.style.display = 'none';
+            past.style.display = 'table-row-group';
+        }
+        
+        checkEmptyState();
+    }
+
+    function cancelBooking(btn) {
+        if (confirm("Cancel this booking?\nThis action cannot be undone.")) {
+            const row = btn.closest('tr');
+            row.style.transition = 'all 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => {
+                row.remove();
+                checkEmptyState();
+            }, 300);
+        }
+    }
+
+    function checkEmptyState() {
+        const activeBody = document.getElementById('upcoming-body').style.display !== 'none' 
+            ? document.getElementById('upcoming-body') 
+            : document.getElementById('past-body');
+        
+        document.getElementById('empty-state').style.display = 
+            activeBody.children.length === 0 ? 'block' : 'none';
+    }
+
+    function toggleCalendarView() {
+        alert("📅 Full calendar view would open here (FullCalendar or django-calendars ready for production)");
+    }
+
+    window.onload = () => {
+        checkEmptyState();
+    };
+</script>
 {% endblock %}

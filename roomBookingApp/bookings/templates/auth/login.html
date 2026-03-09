@@ -1,15 +1,106 @@
 {% extends 'base.html' %}
 {% block title %}Login{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Login</h2>
-    <form method="post">
-        {% csrf_token %}
-        <label>Email</label><input type="email" name="username">
-        <label>Password</label><input type="password" name="password">
-        <label><input type="checkbox" name="remember"> Remember me</label>
-        <a href="{% url 'password_reset' %}">Forgot password?</a>
-        <button class="btn btn-primary">Login</button>
-    </form>
+<div style="max-width: 420px; margin: 80px auto 40px auto;">
+
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 2.8rem; font-weight: 700; color: var(--primary); letter-spacing: -2px;">
+            RoomBooker
+        </div>
+        <p style="color: var(--text-dim); margin: 4px 0 0; font-size: 1.05rem;">
+            Smart Room Booking + Face Recognition Access
+        </p>
+    </div>
+
+    <div class="card">
+        <h2 style="text-align: center; margin-bottom: 25px;">Welcome back</h2>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="card" style="background: var(--danger); color: white; padding: 12px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Email address</label>
+                <input type="email" name="username" required 
+                       style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
+                       placeholder="you@company.com">
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Password</label>
+                <input type="password" name="password" id="password-field" required 
+                       style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
+                       placeholder="••••••••">
+                <small onclick="togglePassword()" style="cursor: pointer; color: var(--primary); float: right; margin-top: 4px; font-size: 0.85rem;">
+                    👁 Show password
+                </small>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; font-size: 0.9rem;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" name="remember" style="accent-color: var(--primary);">
+                    <span>Remember me</span>
+                </label>
+                <a href="{% url 'password_reset' %}" style="color: var(--primary); text-decoration: none;">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn btn-primary" 
+                    style="width: 100%; padding: 14px; font-size: 1.05rem;">
+                Sign in
+            </button>
+        </form>
+
+        <div style="margin: 28px 0; text-align: center; position: relative;">
+            <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border);"></div>
+            <span style="background: var(--card); padding: 0 16px; color: var(--text-dim); font-size: 0.85rem;">or</span>
+        </div>
+
+        <a href="{% url 'face_verification' %}" class="btn btn-outline" 
+           style="width: 90%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; font-size: 1.05rem;">
+            👤 Login with Face Recognition
+        </a>
+
+        <p style="text-align: center; margin-top: 28px; color: var(--text-dim); font-size: 0.9rem;">
+            Don't have an account? 
+            <a href="{% url 'register' %}" style="color: var(--primary); text-decoration: none;">Create one now →</a>
+        </p>
+
+        <div style="text-align: center; margin-top: 20px; padding: 10px; background: rgba(56, 189, 248, 0.1); border-radius: 8px; font-size: 0.8rem; color: var(--text-dim);">
+            🔒 Two-factor authentication available after login
+        </div>
+    </div>
+
+    <p style="text-align: center; margin-top: 30px; color: var(--text-dim); font-size: 0.8rem;">
+        Secured by Raspberry Pi + Face Recognition<br>
+        <a href="{% url 'privacy_biometric_consent' %}" style="color: var(--text-dim);">Privacy & Biometric Policy</a>
+    </p>
+
 </div>
+
+<script>
+    function togglePassword() {
+        const field = document.getElementById('password-field');
+        const text = event.target;
+        if (field.type === "password") {
+            field.type = "text";
+            text.textContent = "🙈 Hide password";
+        } else {
+            field.type = "password";
+            text.textContent = "👁 Show password";
+        }
+    }
+
+    window.onload = () => {
+        const emailField = document.querySelector('input[type="email"]');
+        if (emailField) emailField.focus();
+    };
+</script>
 {% endblock %}

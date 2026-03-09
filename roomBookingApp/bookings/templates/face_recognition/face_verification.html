@@ -1,8 +1,129 @@
 {% extends 'base.html' %}
 {% block title %}Face Verification{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Verify Face</h2>
-    <button class="btn btn-primary">Verify</button>
+<div style="max-width: 720px; margin: 40px auto;">
+
+    <div class="card">
+        <h2 style="margin-bottom: 25px; text-align: center;">Face Verification</h2>
+
+        <div style="background: #000; border-radius: 16px; overflow: hidden; position: relative; border: 3px solid var(--border); margin-bottom: 20px;">
+            <img id="verification-feed" src="https://picsum.photos/id/1015/800/480" 
+                 style="width: 100%; height: auto; display: block;">
+            
+            <div id="face-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 220px; height: 280px; border: 3px solid var(--primary); border-radius: 50%; box-shadow: 0 0 0 6px rgba(56,189,248,0.3); display: none;">
+                <div style="position: absolute; top: -28px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #000; padding: 2px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">DETECTED</div>
+            </div>
+
+            <div id="scanning-ring" style="position: absolute; top: 50%; left: 50%; width: 260px; height: 260px; border: 4px solid transparent; border-top-color: var(--primary); border-radius: 50%; animation: spin 1.2s linear infinite; display: none; transform: translate(-50%, -50%);"></div>
+        </div>
+
+        <div id="status-area" style="text-align: center; margin-bottom: 25px; min-height: 68px;">
+            <p id="status-text" style="margin: 0; font-size: 1.15rem; color: var(--text-dim);">
+                Position your face in the frame
+            </p>
+            <small id="status-sub" style="color: var(--text-dim);">Camera ready • Face recognition active</small>
+        </div>
+
+        <button onclick="startVerification()" id="verify-btn"
+                class="btn btn-primary" style="width: 100%; padding: 18px; font-size: 1.15rem;">
+            🔍 Start Face Verification
+        </button>
+
+        <button onclick="cancelVerification()" 
+                class="btn btn-outline" style="width: 100%; margin-top: 12px;">
+            Cancel
+        </button>
+    </div>
+
+    <div id="result-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center;">
+        <div class="card" style="width: 420px; text-align: center;">
+            <div id="result-icon" style="font-size: 5rem; margin-bottom: 15px;">✅</div>
+            <h2 id="result-title" style="margin: 0 0 8px 0; color: var(--success);">Access Granted</h2>
+            <p id="result-name" style="font-size: 1.3rem; margin: 8px 0;">Alex Chen</p>
+            <p id="result-confidence" style="color: var(--success); font-weight: 600;">98% match</p>
+            
+            <div style="margin: 25px 0;">
+                <button onclick="proceedToAccessResult()" class="btn btn-primary" style="width: 100%;">
+                    Continue to Room
+                </button>
+            </div>
+            
+            <button onclick="hideResultOverlay()" class="btn btn-outline" style="width: 100%;">
+                Try Again
+            </button>
+        </div>
+    </div>
+
 </div>
+
+<script>
+    let verificationRunning = false;
+
+    function startVerification() {
+        verificationRunning = true;
+        const btn = document.getElementById('verify-btn');
+        const overlay = document.getElementById('face-overlay');
+        const ring = document.getElementById('scanning-ring');
+        const statusText = document.getElementById('status-text');
+        
+        btn.textContent = "Scanning...";
+        btn.disabled = true;
+        overlay.style.display = "block";
+        ring.style.display = "block";
+        statusText.textContent = "Analyzing face...";
+
+        setTimeout(() => {
+            if (verificationRunning) {
+                showResult();
+            }
+        }, 2100);
+    }
+
+    function showResult() {
+        verificationRunning = false;
+        document.getElementById('result-overlay').style.display = "flex";
+    }
+
+    function hideResultOverlay() {
+        document.getElementById('result-overlay').style.display = "none";
+        resetVerification();
+    }
+
+    function proceedToAccessResult() {
+        window.location.href = "{% url 'access_result' %}";
+    }
+
+    function cancelVerification() {
+        if (confirm("Cancel face verification?")) {
+            resetVerification();
+        }
+    }
+
+    function resetVerification() {
+        verificationRunning = false;
+        const btn = document.getElementById('verify-btn');
+        const overlay = document.getElementById('face-overlay');
+        const ring = document.getElementById('scanning-ring');
+        const statusText = document.getElementById('status-text');
+
+        btn.textContent = "🔍 Start Face Verification";
+        btn.disabled = false;
+        overlay.style.display = "none";
+        ring.style.display = "none";
+        statusText.textContent = "Position your face in the frame";
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === "Enter" && !document.getElementById('result-overlay').style.display) {
+            startVerification();
+        }
+    });
+</script>
+
+<style>
+    @keyframes spin {
+        to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+</style>
 {% endblock %}

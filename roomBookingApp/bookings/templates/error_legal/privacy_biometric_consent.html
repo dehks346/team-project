@@ -1,9 +1,102 @@
 {% extends 'base.html' %}
 {% block title %}Privacy & Biometric Consent{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Privacy & Biometric Consent</h2>
-    <p>Explanation of data use...</p>
-    <!-- Details -->
+<div style="max-width: 760px; margin: 40px auto;">
+
+    <div class="card" style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">🔒</div>
+        <h1 style="margin: 0 0 8px 0;">Privacy &amp; Biometric Consent</h1>
+        <p style="color: var(--text-dim); font-size: 1.1rem;">RoomGuard Room Booking System</p>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top: 0;">Your Biometric Data &amp; Privacy</h2>
+        
+        <p style="font-size: 1.05rem; line-height: 1.6; color: var(--text-dim);">
+            RoomGuard uses facial recognition to provide secure, contactless room access. 
+            We take your privacy extremely seriously. Below is a clear summary of what we collect, 
+            how we use it, and your rights.
+        </p>
+
+        <div style="background: rgba(56, 189, 248, 0.08); padding: 20px; border-radius: 10px; margin: 25px 0;">
+            <strong>📍 This system is powered by a Raspberry Pi + local face recognition model.</strong><br>
+            <small style="color: var(--text-dim);">All biometric data stays on our secure server — nothing is sent to third-party cloud services.</small>
+        </div>
+
+        <h3 style="margin: 35px 0 12px 0;">1. What Biometric Data We Collect</h3>
+        <ul style="color: var(--text-dim); line-height: 1.7;">
+            <li>Face embeddings (mathematical templates — not actual photos)</li>
+            <li>Multiple enrollment images (only during signup or re-enrollment)</li>
+            <li>Access attempt logs (timestamp, room, confidence score, result)</li>
+        </ul>
+
+        <h3 style="margin: 35px 0 12px 0;">2. How We Use Your Data</h3>
+        <ul style="color: var(--text-dim); line-height: 1.7;">
+            <li>Real-time face verification when entering a room</li>
+            <li>Booking confirmation &amp; access control</li>
+            <li>Security auditing (failed attempts, unauthorized access)</li>
+            <li>Improving the recognition model (only with explicit consent)</li>
+        </ul>
+
+        <h3 style="margin: 35px 0 12px 0;">3. Data Retention &amp; Security</h3>
+        <table style="width: 100%; margin: 15px 0;">
+            <tr><td style="color: var(--text-dim);">Face templates</td><td><strong>Until you delete them or leave the organization</strong></td></tr>
+            <tr><td style="color: var(--text-dim);">Access logs</td><td><strong>90 days</strong> (then auto-deleted)</td></tr>
+            <tr><td style="color: var(--text-dim);">Enrollment photos</td><td><strong>Deleted immediately</strong> after template creation</td></tr>
+        </table>
+        <p style="color: var(--text-dim); font-size: 0.9rem;">
+            All data is encrypted at rest and in transit. Only administrators can access logs.
+        </p>
+
+        <h3 style="margin: 35px 0 12px 0;">4. Your Rights</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                ✅ Delete all biometric data<br>
+                <small style="color: var(--text-dim);">Instantly via the Face Enrollment page</small>
+            </div>
+            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                ✅ Revoke consent at any time<br>
+                <small style="color: var(--text-dim);">Access will fall back to PIN/QR</small>
+            </div>
+            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                ✅ Export your data<br>
+                <small style="color: var(--text-dim);">Request via admin</small>
+            </div>
+            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                ✅ View all access logs<br>
+                <small style="color: var(--text-dim);">Available in your profile</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 25px;">
+        <h3 style="margin-top: 0;">Your Consent Status</h3>
+        
+        <div style="display: flex; align-items: center; gap: 15px; padding: 20px; background: rgba(34, 197, 94, 0.1); border-radius: 10px; margin: 15px 0;">
+            <span class="badge badge-success" style="font-size: 1.1rem; padding: 10px 18px;">✅ CONSENT GIVEN</span>
+            <div style="flex: 1;">
+                <strong>You have given consent for biometric processing.</strong><br>
+                <small style="color: var(--success);">Enrolled on Feb 26, 2026</small>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="{% url 'face_enrollment' %}" class="btn btn-primary" style="flex: 1; text-align: center;">
+                Manage / Delete Face Data
+            </a>
+            <button onclick="if(confirm('Withdraw consent? You will lose face access.')) alert('Consent withdrawn. Face data deleted. (Ready for backend hook)')" 
+                    class="btn btn-outline" style="flex: 1;">
+                Withdraw Consent
+            </button>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 25px; font-size: 0.85rem; color: var(--text-dim);">
+        <p>Last updated: March 2026</p>
+        <p>This is a simplified summary. For the full legal privacy policy, please contact your administrator.</p>
+        <a href="{% url 'home' %}" class="btn btn-outline" style="margin-top: 15px;">← Return to Dashboard</a>
+    </div>
+
 </div>
 {% endblock %}
