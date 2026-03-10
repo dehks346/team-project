@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import time
 from pathlib import Path
+from picamera2 import Picamera2
 
 
 
@@ -9,18 +10,17 @@ from pathlib import Path
 # LOAD FACE RECOGNITION MODEL
 # ========================
 recognizer = cv2.face.LBPHFaceRecognizer_create()
-recognizer.read("face_model.yml")
+model_path = str(Path(__file__).parent / "face_model.yml")
+recognizer.read(model_path)
 
-# 🔹 PASTE LABEL MAP HERE
-label_map = {
-    0: "Nell",
-    1: "charli",
-    2: "elliot",
-    3: "henry",
-    4: "jed",
-    5: "olly",
-    6: "stan"
-}
+# 🔹 IMPORT DATA FROM LABEL_MAP.JSON
+import json
+
+with open("label_map.json", "r") as f:
+    label_map = json.load(f)
+
+label_map = {int(k): v for k, v in label_map.items()}  # Convert keys to int
+
 
 # ========================
 # LOAD FACE DETECTOR
@@ -55,7 +55,11 @@ face_cascade = cv2.CascadeClassifier(cascade_path)
 # ========================
 # CAMERA SETUP
 # ========================
-cap = cv2.VideoCapture(0)
+print("Initializing Raspberry Pi camera...")
+picam2 = Picamera2()
+picam2.configure(picam2.create_preview_configuration(main={"format": 'RGB888', "size": (640, 480)}))
+picam2.start()
+time.sleep(2)  # Let camera warm up
 
 print("Starting face_detect")
 
@@ -63,14 +67,6 @@ print("Starting face_detect")
 # Load the pre-trained Haar Cascade face detector
 face_cascade = cv2.CascadeClassifier(cascade_path)
 print("Face detector loaded")
-
-# === CAMERA SETUP ===
-# Change 0 to 1 if you have multiple webcams
-cap = cv2.VideoCapture(2)
-time.sleep(1)
-
-if not cap.isOpened():
-    raise RuntimeError("Could not open camera")
 
 cv2.namedWindow("Face Detect", cv2.WINDOW_NORMAL)
 print("Window created")
@@ -104,10 +100,13 @@ current_fps = 0
 # === MAIN LOOP ===
 
 while True:
-    ret, frame = cap.read()
-    if not ret:
+    # Capture frame from Raspberry Pi camera
+    frame = picam2.capture_array()
+    if frame is None:
         continue
 
+    # Convert RGB to BGR for OpenCV
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     frame = cv2.flip(frame, 1)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -189,6 +188,6 @@ while True:
         break
 
 
-cap.release()
+picam2.stop()
 cv2.destroyAllWindows()
 print("Clean exit")

@@ -21,18 +21,18 @@
             <div>
                 <h3 style="margin-bottom: 12px;">📹 Webcam Capture (Recommended)</h3>
                 <div style="background: #000; border-radius: 12px; overflow: hidden; position: relative; border: 2px solid var(--border);">
-                    <img id="webcam-preview" src="https://picsum.photos/id/1015/640/360" 
-                         style="width: 100%; display: block; filter: brightness(0.95);">
+                    <img id="webcam-preview" src="{% url 'enrollment_stream' %}" 
+                         style="width: 100%; display: block; min-height: 240px;">
                     <div style="position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.7); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem;">
                         Live
+                    </div>
+                    <div id="face-count" style="position: absolute; top: 12px; left: 12px; background: rgba(34,197,94,0.8); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; display: none;">
+                        Face Detected ✓
                     </div>
                 </div>
                 
                 <div style="margin-top: 15px; display: flex; gap: 10px;">
-                    <button onclick="startWebcam()" class="btn btn-primary" style="flex: 1;">
-                        🎥 Start Camera
-                    </button>
-                    <button onclick="captureImage()" id="capture-btn" class="btn btn-outline" style="flex: 1;" disabled>
+                    <button onclick="captureFromCamera()" id="capture-btn" class="btn btn-primary" style="flex: 1;">
                         📸 Capture Photo
                     </button>
                 </div>
@@ -83,17 +83,56 @@
 
 <script>
     let capturedImages = [];
+    let captureCount = 0;
 
-    function startWebcam() {
-        document.getElementById('capture-btn').disabled = false;
-        alert("📹 Webcam started (demo mode)\n\nIn production this would use getUserMedia + Raspberry Pi stream");
-    }
-
-    function captureImage() {
-        const preview = document.getElementById('webcam-preview');
-        capturedImages.push(preview.src);
-        addPreviewImage(preview.src);
-        checkCanEnroll();
+    function captureFromCamera() {
+        const btn = document.getElementById('capture-btn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Capturing...';
+        
+        fetch('{% url "capture_face_image" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                captureCount = data.count;
+                capturedImages.push(data.count);
+                
+                // Add visual feedback
+                const preview = document.createElement('div');
+                preview.style.cssText = 'position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid var(--success); background: var(--success); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;';
+                preview.textContent = captureCount;
+                document.getElementById('upload-previews').appendChild(preview);
+                
+                // Update status
+                document.getElementById('status-text').textContent = `${captureCount} image(s) captured`;
+                document.getElementById('status-sub').textContent = 'Capture 3-5 images for best results';
+                
+                if (captureCount >= 3) {
+                    document.getElementById('status-badge').textContent = 'Ready';
+                    document.getElementById('status-badge').className = 'badge badge-success';
+                }
+                
+                checkCanEnroll();
+                
+                btn.textContent = '📸 Capture Photo';
+                btn.disabled = false;
+            } else {
+                alert('❌ ' + (data.error || 'Capture failed'));
+                btn.textContent = '📸 Capture Photo';
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error('Capture error:', err);
+            alert('❌ Network error during capture');
+            btn.textContent = '📸 Capture Photo';
+            btn.disabled = false;
+        });
     }
 
     function handleUpload(e) {
@@ -123,10 +162,19 @@
 
     function checkCanEnroll() {
         const btn = document.getElementById('enroll-btn');
-        btn.disabled = capturedImages.length < 1;
+        btn.disabled = captureCount < 3;
+        
+        if (captureCount >= 3) {
+            btn.textContent = `✅ Complete Face Enrollment (${captureCount} images)`;
+        }
     }
 
     function enrollNow() {
+        if (captureCount < 3) {
+            alert('⚠️ Please capture at least 3 images for accurate enrollment');
+            return;
+        }
+        
         const progress = document.getElementById('progress-container');
         progress.style.display = 'block';
         
@@ -143,7 +191,7 @@
                         <div style="font-size: 2rem;">✅</div>
                         <div style="flex: 1;">
                             <strong>Enrolled Successfully</strong><br>
-                            <small style="color: var(--success);">3 images processed • Ready for access</small>
+                            <small style="color: var(--success);">${captureCount} images processed • Ready for access</small>
                         </div>
                         <span class="badge badge-success">COMPLETE</span>
                     `;
@@ -156,9 +204,28 @@
         if (confirm("⚠️ Delete ALL face data?\nYou will lose face access until you re-enroll.")) {
             alert("🗑️ Face data deleted. You can re-enroll anytime.");
             capturedImages = [];
+            captureCount = 0;
             document.getElementById('upload-previews').innerHTML = '';
             document.getElementById('enroll-btn').disabled = true;
+            document.getElementById('status-text').textContent = 'Not enrolled yet';
+            document.getElementById('status-badge').textContent = 'Pending';
+            document.getElementById('status-badge').className = 'badge badge-danger';
         }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
 
     window.onload = () => {
@@ -167,6 +234,9 @@
             e.preventDefault();
             handleUpload({ target: { files: e.dataTransfer.files } });
         });
+        
+        // Camera is automatically started with the stream
+        console.log('📹 Raspberry Pi camera stream active');
     };
 </script>
 {% endblock %}
