@@ -8,7 +8,7 @@ from .views import (
     AccessResultView, LiveFeedView, SystemStatusView, AdminGlobalAuditLogView,
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
     PrivacyBiometricConsentView, ToggleDebugView, video_stream, get_face_status, toggle_face_detection,
-    enrollment_stream, capture_face_image, verification_stream, start_face_verification
+    enrollment_stream, capture_face_image, verification_stream, start_face_verification, set_confidence_threshold
 )
 
 urlpatterns = [
@@ -43,6 +43,7 @@ urlpatterns = [
     path('face/capture_image/', capture_face_image, name='capture_face_image'),
     path('face/verification/', FaceVerificationView.as_view(), name='face_verification'),
     path('face/start_verification/', start_face_verification, name='start_face_verification'),
+    path('face/set_confidence_threshold/', set_confidence_threshold, name='set_confidence_threshold'),
     path('face/verification_stream/', verification_stream, name='verification_stream'),
     path('face/access_result/', AccessResultView.as_view(), name='access_result'),
 

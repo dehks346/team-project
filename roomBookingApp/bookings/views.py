@@ -28,7 +28,10 @@ face_detection_enabled = True
 confirmed_name = None
 frame_count = 0
 REQUIRED_CONSISTENT_FRAMES = 5
-CONFIDENCE_THRESHOLD = 50
+MIN_CONFIDENCE_THRESHOLD = 40
+MAX_CONFIDENCE_THRESHOLD = 120
+CONFIDENCE_THRESHOLD = 75
+last_prediction_distance = None
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FACE_RECOGNITION_DIR = PROJECT_ROOT / "Face_Recognition"
@@ -49,6 +52,10 @@ def _resolve_identity_name(raw_identity):
             return full_name or user.username or f"User {identity}"
         return f"User {identity}"
     return identity
+
+
+def _clamp_confidence_threshold(value):
+    return max(MIN_CONFIDENCE_THRESHOLD, min(MAX_CONFIDENCE_THRESHOLD, int(value)))
 
 
 def _load_label_map_from_disk():
@@ -237,7 +244,7 @@ def get_camera():
 
 def generate_frames():
     """Generator function to yield camera frames with face detection as JPEG"""
-    global confirmed_name, frame_count, face_detection_enabled
+    global confirmed_name, frame_count, face_detection_enabled, last_prediction_distance
     
     camera = get_camera()
     if camera is None:
@@ -284,6 +291,7 @@ def generate_frames():
                     try:
                         # Predict face
                         label, confidence = recognizer.predict(face_roi)
+                        last_prediction_distance = float(confidence)
                         
                         if confidence < CONFIDENCE_THRESHOLD:
                             current_name = label_map.get(label, "Unknown")
@@ -333,6 +341,9 @@ def generate_frames():
                         )
                     except Exception as e:
                         print(f"Face recognition error: {e}")
+
+                if len(faces) == 0:
+                    last_prediction_distance = None
                 
                 # Convert back to RGB for PIL
                 frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
@@ -367,12 +378,59 @@ def video_stream(request):
 def get_face_status(request):
     """API endpoint to get current face detection status"""
     from django.http import JsonResponse
+
+    match_score = 0
+    if last_prediction_distance is not None:
+        score = 100 - (float(last_prediction_distance) / float(MAX_CONFIDENCE_THRESHOLD)) * 100
+        match_score = max(0, min(100, score))
     
     return JsonResponse({
         'recognition_enabled': face_detection_enabled,
         'current_face': confirmed_name or 'None',
         'confidence': frame_count / REQUIRED_CONSISTENT_FRAMES * 100 if REQUIRED_CONSISTENT_FRAMES > 0 else 0,
-        'frames_confirmed': frame_count >= REQUIRED_CONSISTENT_FRAMES
+        'frames_confirmed': frame_count >= REQUIRED_CONSISTENT_FRAMES,
+        'match_score': match_score,
+        'distance': last_prediction_distance,
+        'threshold': CONFIDENCE_THRESHOLD,
+        'threshold_min': MIN_CONFIDENCE_THRESHOLD,
+        'threshold_max': MAX_CONFIDENCE_THRESHOLD,
+    })
+
+
+def set_confidence_threshold(request):
+    """Set LBPH confidence threshold (higher = more lenient recognition)."""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception:
+        payload = {}
+
+    raw_value = payload.get('threshold')
+    if raw_value is None:
+        raw_value = request.POST.get('threshold')
+
+    if raw_value is None:
+        return JsonResponse({'success': False, 'error': 'threshold is required'}, status=400)
+
+    try:
+        threshold = _clamp_confidence_threshold(float(raw_value))
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'threshold must be a number'}, status=400)
+
+    global CONFIDENCE_THRESHOLD, confirmed_name, frame_count, last_prediction_distance
+    CONFIDENCE_THRESHOLD = threshold
+    confirmed_name = None
+    frame_count = 0
+    last_prediction_distance = None
+
+    return JsonResponse({
+        'success': True,
+        'threshold': CONFIDENCE_THRESHOLD,
+        'message': f'Recognition sensitivity updated to {CONFIDENCE_THRESHOLD}',
     })
 
 
@@ -383,9 +441,10 @@ def start_face_verification(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
 
-    global confirmed_name, frame_count
+    global confirmed_name, frame_count, last_prediction_distance
     confirmed_name = None
     frame_count = 0
+    last_prediction_distance = None
 
     init_face_detection()
     success, message = train_face_model_from_dataset()
@@ -539,7 +598,7 @@ def capture_face_image(request):
 
 def generate_verification_frames():
     """Generator function for face verification stream with real-time recognition"""
-    global confirmed_name, frame_count
+    global confirmed_name, frame_count, last_prediction_distance
     
     camera = get_camera()
     if camera is None:
@@ -572,6 +631,7 @@ def generate_verification_frames():
                     
                     try:
                         label, confidence = recognizer.predict(face_roi)
+                        last_prediction_distance = float(confidence)
                         
                         if confidence < CONFIDENCE_THRESHOLD:
                             current_name = label_map.get(label, "Unknown")
@@ -615,6 +675,9 @@ def generate_verification_frames():
                         )
                     except Exception as e:
                         print(f"Verification error: {e}")
+
+                if len(faces) == 0:
+                    last_prediction_distance = None
                 
                 frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
             

@@ -25,6 +25,18 @@
             <small id="status-sub" style="color: var(--text-dim);">Camera ready • Face recognition active</small>
         </div>
 
+        <div style="margin-bottom: 20px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong>Recognition Sensitivity</strong>
+                <span id="threshold-display" class="badge badge-success">75</span>
+            </div>
+            <input type="range" id="threshold-slider" min="40" max="120" step="1" value="75"
+                   style="width: 100%;"
+                   oninput="updateThresholdLabel(this.value)"
+                   onchange="saveThreshold(this.value)">
+            <small id="threshold-hint" style="color: var(--text-dim);">Balanced • Higher value = more lenient recognition</small>
+        </div>
+
         <button onclick="startVerification()" id="verify-btn"
                 class="btn btn-primary" style="width: 100%; padding: 18px; font-size: 1.15rem;">
             🔍 Start Face Verification
@@ -60,6 +72,66 @@
 <script>
     let verificationRunning = false;
     let verificationCheckInterval = null;
+
+    function updateThresholdLabel(value) {
+        const threshold = Number(value);
+        const display = document.getElementById('threshold-display');
+        const hint = document.getElementById('threshold-hint');
+
+        display.textContent = String(threshold);
+
+        let mode = 'Balanced';
+        if (threshold <= 60) {
+            mode = 'Strict';
+            display.className = 'badge badge-danger';
+        } else if (threshold >= 95) {
+            mode = 'Lenient';
+            display.className = 'badge badge-success';
+        } else {
+            display.className = 'badge badge-primary';
+        }
+
+        hint.textContent = `${mode} • Higher value = more lenient recognition`;
+    }
+
+    function saveThreshold(value) {
+        fetch('{% url "set_confidence_threshold" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({ threshold: Number(value) })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Failed to update sensitivity');
+            }
+
+            document.getElementById('threshold-slider').value = data.threshold;
+            updateThresholdLabel(data.threshold);
+            if (!verificationRunning) {
+                document.getElementById('status-sub').textContent = `Sensitivity set to ${data.threshold}`;
+            }
+        })
+        .catch(error => {
+            alert(`❌ ${error.message}`);
+        });
+    }
+
+    function loadThresholdSettings() {
+        fetch('{% url "face_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const slider = document.getElementById('threshold-slider');
+                slider.min = data.threshold_min;
+                slider.max = data.threshold_max;
+                slider.value = data.threshold;
+                updateThresholdLabel(data.threshold);
+            })
+            .catch(err => console.error('Threshold load error:', err));
+    }
 
     function startVerification() {
         if (verificationRunning) {
@@ -117,19 +189,20 @@
             .then(data => {
                 const statusText = document.getElementById('status-text');
                 const statusSub = document.getElementById('status-sub');
+                const matchScore = Math.round(data.match_score || 0);
                 
                 if (data.current_face && data.current_face !== 'None') {
                     statusText.textContent = `Detected: ${data.current_face}`;
-                    statusSub.textContent = `Confidence: ${Math.round(data.confidence)}%`;
+                    statusSub.textContent = `Match score: ${matchScore}% • Threshold: ${data.threshold}`;
                     
                     // If confirmed, show result
                     if (data.frames_confirmed && verificationRunning) {
                         clearInterval(verificationCheckInterval);
-                        showResult(data.current_face, Math.round(data.confidence));
+                        showResult(data.current_face, matchScore);
                     }
                 } else {
                     statusText.textContent = "Position your face in the frame";
-                    statusSub.textContent = "Looking for face...";
+                    statusSub.textContent = `Looking for face... • Threshold: ${data.threshold}`;
                 }
             })
             .catch(err => console.error('Verification check error:', err));
@@ -144,13 +217,13 @@
         const resultName = document.getElementById('result-name');
         const resultConfidence = document.getElementById('result-confidence');
         
-        if (name !== 'Unknown' && confidence > 50) {
+        if (name !== 'Unknown') {
             resultIcon.textContent = '✅';
             resultIcon.style.color = 'var(--success)';
             resultTitle.textContent = 'Access Granted';
             resultTitle.style.color = 'var(--success)';
             resultName.textContent = name;
-            resultConfidence.textContent = `${confidence}% match`;
+            resultConfidence.textContent = `${confidence}% match score`;
             resultConfidence.style.color = 'var(--success)';
         } else {
             resultIcon.textContent = '❌';
@@ -158,7 +231,7 @@
             resultTitle.textContent = 'Access Denied';
             resultTitle.style.color = 'var(--danger)';
             resultName.textContent = 'Unknown User';
-            resultConfidence.textContent = `${confidence}% confidence - Too low`;
+            resultConfidence.textContent = `${confidence}% match score`;
             resultConfidence.style.color = 'var(--danger)';
         }
         
@@ -227,6 +300,7 @@
     
     // Initialize
     window.onload = () => {
+        loadThresholdSettings();
         console.log('📹 Raspberry Pi verification stream active');
     };
 </script>

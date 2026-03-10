@@ -46,8 +46,18 @@
                 <tr><td style="color: var(--text-dim);">FPS</td><td style="text-align: right; font-weight: 600;" id="fps">Calculating...</td></tr>
                 <tr><td style="color: var(--text-dim);">Current Face</td><td style="text-align: right; font-weight: 600;" id="current-face">None Detected</td></tr>
                 <tr><td style="color: var(--text-dim);">Confidence</td><td style="text-align: right; font-weight: 600;" id="confidence-level">0%</td></tr>
+                <tr><td style="color: var(--text-dim);">Threshold</td><td style="text-align: right; font-weight: 600;" id="threshold-level">75</td></tr>
                 <tr><td style="color: var(--text-dim);">Model Health</td><td style="text-align: right;"><span class="badge badge-success" id="model-health">Healthy</span></td></tr>
             </table>
+
+            <div style="margin-top: 14px;">
+                <small style="display: block; margin-bottom: 6px; color: var(--text-dim);">Recognition Sensitivity</small>
+                <input type="range" id="live-threshold-slider" min="40" max="120" step="1" value="75"
+                       style="width: 100%;"
+                       oninput="updateLiveThresholdLabel(this.value)"
+                       onchange="saveLiveThreshold(this.value)">
+                <small id="live-threshold-hint" style="color: var(--text-dim);">Balanced • Higher value = more lenient recognition</small>
+            </div>
         </div>
 
         <div class="card" style="flex: 1;">
@@ -80,6 +90,70 @@
     const MAX_HISTORY = 15;
     let lastDetectedPerson = null;
     let detectionTimestamp = null;
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function updateLiveThresholdLabel(value) {
+        const threshold = Number(value);
+        const hint = document.getElementById('live-threshold-hint');
+
+        let mode = 'Balanced';
+        if (threshold <= 60) {
+            mode = 'Strict';
+        } else if (threshold >= 95) {
+            mode = 'Lenient';
+        }
+
+        document.getElementById('threshold-level').textContent = String(threshold);
+        hint.textContent = `${mode} • Higher value = more lenient recognition`;
+    }
+
+    function saveLiveThreshold(value) {
+        fetch('{% url "set_confidence_threshold" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({ threshold: Number(value) })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Failed to update sensitivity');
+            }
+
+            document.getElementById('live-threshold-slider').value = data.threshold;
+            updateLiveThresholdLabel(data.threshold);
+        })
+        .catch(error => alert(`❌ ${error.message}`));
+    }
+
+    function loadLiveThresholdSettings() {
+        fetch('{% url "face_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const slider = document.getElementById('live-threshold-slider');
+                slider.min = data.threshold_min;
+                slider.max = data.threshold_max;
+                slider.value = data.threshold;
+                updateLiveThresholdLabel(data.threshold);
+            })
+            .catch(err => console.error('Threshold load error:', err));
+    }
 
     function toggleFullscreen() {
         const img = document.getElementById('live-stream');
@@ -190,24 +264,32 @@
             .then(data => {
                 const currentFace = document.getElementById('current-face');
                 const confidenceLevel = document.getElementById('confidence-level');
+                const thresholdLevel = document.getElementById('threshold-level');
                 const overlay = document.getElementById('overlay-detection');
                 const detectedName = document.getElementById('detected-name');
                 const detectionConf = document.getElementById('detection-confidence');
+                const matchScore = Math.round(data.match_score || 0);
+
+                thresholdLevel.textContent = data.threshold;
+                const slider = document.getElementById('live-threshold-slider');
+                if (slider && !document.activeElement.isSameNode(slider)) {
+                    slider.value = data.threshold;
+                }
                 
                 if (data.current_face && data.current_face !== 'None') {
                     currentFace.textContent = data.current_face;
-                    confidenceLevel.textContent = Math.round(data.confidence) + '%';
+                    confidenceLevel.textContent = matchScore + '%';
                     
                     detectedName.textContent = data.current_face;
                     const statusText = data.frames_confirmed ? 'Access Granted' : 'Verifying identity...';
                     const statusColor = data.frames_confirmed ? 'var(--success)' : 'var(--warning)';
-                    detectionConf.innerHTML = `<span style="color: ${statusColor};">${statusText}</span> • ${Math.round(data.confidence)}%`;
+                    detectionConf.innerHTML = `<span style="color: ${statusColor};">${statusText}</span> • ${matchScore}%`;
                     
                     overlay.style.display = 'block';
                     
                     // Add to log if confirmed
                     if (data.frames_confirmed) {
-                        addRecognitionToLog(data.current_face, Math.round(data.confidence), true);
+                        addRecognitionToLog(data.current_face, matchScore, true);
                     }
                 } else {
                     currentFace.textContent = 'None Detected';
@@ -220,6 +302,9 @@
 
     // Update face status every 500ms
     setInterval(updateFaceStatus, 500);
+
+    // Load threshold settings once
+    loadLiveThresholdSettings();
 
     // Update FPS calculation every 3 seconds
     setInterval(() => {
