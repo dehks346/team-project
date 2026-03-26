@@ -7,7 +7,8 @@ from .views import (
     MyBookingsView, BookingInvitationView, FaceEnrollmentView, FaceVerificationView,
     AccessResultView, LiveFeedView, SystemStatusView, AdminGlobalAuditLogView,
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
-    PrivacyBiometricConsentView, ToggleDebugView, video_stream
+    PrivacyBiometricConsentView, ToggleDebugView, video_stream, get_face_status, toggle_face_detection,
+    enrollment_stream, capture_face_image, verification_stream, start_face_verification, set_confidence_threshold
 )
 
 urlpatterns = [
@@ -38,11 +39,18 @@ urlpatterns = [
     path('bookings/invitation/', BookingInvitationView.as_view(), name='booking_invitation'),
 
     path('face/enrollment/', FaceEnrollmentView.as_view(), name='face_enrollment'),
+    path('face/enrollment_stream/', enrollment_stream, name='enrollment_stream'),
+    path('face/capture_image/', capture_face_image, name='capture_face_image'),
     path('face/verification/', FaceVerificationView.as_view(), name='face_verification'),
+    path('face/start_verification/', start_face_verification, name='start_face_verification'),
+    path('face/set_confidence_threshold/', set_confidence_threshold, name='set_confidence_threshold'),
+    path('face/verification_stream/', verification_stream, name='verification_stream'),
     path('face/access_result/', AccessResultView.as_view(), name='access_result'),
 
     path('live/feed/', LiveFeedView.as_view(), name='live_feed'),
     path('live/video_stream/', video_stream, name='video_stream'),
+    path('live/face_status/', get_face_status, name='face_status'),
+    path('live/toggle_face_detection/', toggle_face_detection, name='toggle_face_detection'),
     path('live/status/', SystemStatusView.as_view(), name='system_status'),
 
     path('admin/audit_log/', AdminGlobalAuditLogView.as_view(), name='admin_global_audit_log'),

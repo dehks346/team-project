@@ -8,11 +8,216 @@ from django.urls import reverse_lazy
 from django.contrib.auth.models import User
 from django.http import StreamingHttpResponse
 import io
+import json
 import time
+import cv2
+import numpy as np
+from pathlib import Path
 
 
 # Camera streaming setup
 camera_instance = None
+
+# Face detection and recognition setup
+face_cascade = None
+recognizer = None
+label_map = {}
+face_detection_enabled = True
+
+# Multi-frame recognition tracking
+confirmed_name = None
+frame_count = 0
+REQUIRED_CONSISTENT_FRAMES = 5
+MIN_CONFIDENCE_THRESHOLD = 40
+MAX_CONFIDENCE_THRESHOLD = 120
+CONFIDENCE_THRESHOLD = 75
+last_prediction_distance = None
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FACE_RECOGNITION_DIR = PROJECT_ROOT / "Face_Recognition"
+FACE_DATASET_DIR = FACE_RECOGNITION_DIR / "dataset"
+FACE_MODEL_PATH = FACE_RECOGNITION_DIR / "face_model.yml"
+LABEL_MAP_PATHS = [
+    PROJECT_ROOT / "label_map.json",
+    FACE_RECOGNITION_DIR / "label_map.json",
+]
+
+
+def _resolve_identity_name(raw_identity):
+    identity = str(raw_identity)
+    if identity.isdigit():
+        user = User.objects.filter(id=int(identity)).first()
+        if user is not None:
+            full_name = user.get_full_name().strip()
+            return full_name or user.username or f"User {identity}"
+        return f"User {identity}"
+    return identity
+
+
+def _clamp_confidence_threshold(value):
+    return max(MIN_CONFIDENCE_THRESHOLD, min(MAX_CONFIDENCE_THRESHOLD, int(value)))
+
+
+def _load_label_map_from_disk():
+    for label_map_path in LABEL_MAP_PATHS:
+        if not label_map_path.exists():
+            continue
+
+        try:
+            with open(label_map_path, "r", encoding="utf-8") as file:
+                raw_label_map = json.load(file)
+
+            loaded_map = {}
+            for key, value in raw_label_map.items():
+                loaded_map[int(key)] = _resolve_identity_name(value)
+
+            if loaded_map:
+                return loaded_map
+        except Exception as error:
+            print(f"Could not load label map from {label_map_path}: {error}")
+
+    return {}
+
+
+def _write_label_map_to_disk(current_label_map):
+    serialized_map = {str(key): value for key, value in current_label_map.items()}
+    for label_map_path in LABEL_MAP_PATHS:
+        try:
+            label_map_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(label_map_path, "w", encoding="utf-8") as file:
+                json.dump(serialized_map, file)
+        except Exception as error:
+            print(f"Could not write label map to {label_map_path}: {error}")
+
+
+def train_face_model_from_dataset():
+    global recognizer, label_map
+
+    if not FACE_DATASET_DIR.exists():
+        recognizer = None
+        label_map = {}
+        return False, "No enrolled faces found. Enroll at least one user first."
+
+    person_dirs = sorted([path for path in FACE_DATASET_DIR.iterdir() if path.is_dir()], key=lambda path: path.name)
+    if not person_dirs:
+        recognizer = None
+        label_map = {}
+        return False, "No enrolled faces found. Enroll at least one user first."
+
+    face_images = []
+    face_labels = []
+    trained_label_map = {}
+    label_index = 0
+
+    for person_dir in person_dirs:
+        image_paths = sorted(
+            [
+                *person_dir.glob("*.jpg"),
+                *person_dir.glob("*.jpeg"),
+                *person_dir.glob("*.png"),
+            ],
+            key=lambda path: path.name,
+        )
+
+        images_added = 0
+        for image_path in image_paths:
+            image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+            if image is None or image.size == 0:
+                continue
+
+            face_images.append(image)
+            face_labels.append(label_index)
+            images_added += 1
+
+        if images_added > 0:
+            trained_label_map[label_index] = _resolve_identity_name(person_dir.name)
+            label_index += 1
+
+    if not face_images:
+        recognizer = None
+        label_map = {}
+        return False, "No valid face images found in dataset folders."
+
+    try:
+        trained_recognizer = cv2.face.LBPHFaceRecognizer_create()
+        trained_recognizer.train(face_images, np.array(face_labels))
+        FACE_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        trained_recognizer.write(str(FACE_MODEL_PATH))
+
+        recognizer = trained_recognizer
+        label_map = trained_label_map
+        _write_label_map_to_disk(label_map)
+
+        return True, f"Model ready with {len(label_map)} enrolled user(s)."
+    except Exception as error:
+        recognizer = None
+        label_map = {}
+        return False, f"Could not train face model: {error}"
+
+def init_face_detection():
+    """Initialize face detection and recognition models"""
+    global face_cascade, recognizer, label_map
+    
+    try:
+        # Always initialize face cascade if not already done
+        if face_cascade is None:
+            # Try multiple paths for Haar Cascade
+            cascade_paths = [
+                "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+                "/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml",
+                "/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+            ]
+            
+            # Try cv2.data if it exists
+            try:
+                if hasattr(cv2, 'data') and hasattr(cv2.data, 'haarcascades'):
+                    cascade_paths.insert(0, cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            except:
+                pass
+            
+            for cascade_path in cascade_paths:
+                if Path(cascade_path).exists():
+                    face_cascade = cv2.CascadeClassifier(cascade_path)
+                    if not face_cascade.empty():
+                        print(f"Face cascade loaded from: {cascade_path}")
+                        break
+            
+            if face_cascade is None or face_cascade.empty():
+                print("ERROR: Could not load face cascade!")
+                return False
+        
+        # Try to load recognizer model (optional - not needed for enrollment)
+        if recognizer is None:
+            if FACE_MODEL_PATH.exists():
+                try:
+                    recognizer = cv2.face.LBPHFaceRecognizer_create()
+                    recognizer.read(str(FACE_MODEL_PATH))
+                    label_map = _load_label_map_from_disk()
+
+                    if not label_map:
+                        success, message = train_face_model_from_dataset()
+                        if success:
+                            print(message)
+                        else:
+                            print(message)
+                    else:
+                        print(f"Face recognition model loaded from: {FACE_MODEL_PATH}")
+                except Exception as error:
+                    print(f"Could not load saved face model: {error}")
+                    recognizer = None
+
+            if recognizer is None:
+                success, message = train_face_model_from_dataset()
+                print(message)
+                if not success:
+                    recognizer = None
+        
+        return True
+    except Exception as e:
+        print(f"Face detection initialization error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def get_camera():
     """Get or create a singleton camera instance"""
@@ -20,36 +225,128 @@ def get_camera():
     if camera_instance is None:
         try:
             from picamera2 import Picamera2
+            print("Initializing Raspberry Pi camera...")
             camera_instance = Picamera2()
             config = camera_instance.create_video_configuration(
                 main={"size": (640, 480), "format": "RGB888"}
             )
             camera_instance.configure(config)
             camera_instance.start()
-            time.sleep(0.5)  # Let camera warm up
+            time.sleep(2)  # Let camera warm up
+            print("Camera initialized successfully")
         except Exception as e:
             print(f"Camera initialization error: {e}")
+            import traceback
+            traceback.print_exc()
             camera_instance = None
     return camera_instance
 
 
 def generate_frames():
-    """Generator function to yield camera frames as JPEG"""
+    """Generator function to yield camera frames with face detection as JPEG"""
+    global confirmed_name, frame_count, face_detection_enabled, last_prediction_distance
+    
     camera = get_camera()
     if camera is None:
-        # Return a placeholder frame if camera fails
         yield b'--frame\r\n'
         yield b'Content-Type: text/plain\r\n\r\n'
         yield b'Camera not available\r\n'
         return
     
+    # Initialize face detection
+    init_face_detection()
+    
     try:
-        import numpy as np
         from PIL import Image
         
         while True:
-            # Capture frame from picamera2
             frame = camera.capture_array()
+            
+            # Perform face detection and recognition if enabled and models are loaded
+            if face_detection_enabled and face_cascade is not None and recognizer is not None:
+                # Convert RGB to BGR for OpenCV
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+                
+                # Detect faces
+                small_gray = cv2.resize(gray, (0, 0), fx=0.5, fy=0.5)
+                faces = face_cascade.detectMultiScale(
+                    small_gray,
+                    scaleFactor=1.1,
+                    minNeighbors=5,
+                    minSize=(30, 30)
+                )
+                
+                # Process each detected face
+                for (x, y, w, h) in faces:
+                    # Scale back up
+                    x *= 2
+                    y *= 2
+                    w *= 2
+                    h *= 2
+                    
+                    # Extract face region
+                    face_roi = gray[y:y+h, x:x+w]
+                    
+                    try:
+                        # Predict face
+                        label, confidence = recognizer.predict(face_roi)
+                        last_prediction_distance = float(confidence)
+                        
+                        if confidence < CONFIDENCE_THRESHOLD:
+                            current_name = label_map.get(label, "Unknown")
+                        else:
+                            current_name = "Unknown"
+                        
+                        # Multi-frame verification
+                        if current_name == confirmed_name:
+                            frame_count += 1
+                        else:
+                            confirmed_name = current_name
+                            frame_count = 1
+                        
+                        # Determine display status
+                        if frame_count >= REQUIRED_CONSISTENT_FRAMES:
+                            status_name = "CONFIRMED: " + confirmed_name
+                        else:
+                            status_name = f"Verifying: {current_name} ({frame_count}/{REQUIRED_CONSISTENT_FRAMES})"
+                        
+                        # Set color based on recognition status
+                        if current_name == "Unknown":
+                            color = (0, 0, 255)  # Red
+                        elif frame_count >= REQUIRED_CONSISTENT_FRAMES:
+                            color = (0, 255, 0)  # Green
+                        else:
+                            color = (0, 255, 255)  # Yellow
+                        
+                        # Draw rectangle and text on frame
+                        cv2.rectangle(frame_bgr, (x, y), (x + w, y + h), color, 2)
+                        cv2.putText(
+                            frame_bgr,
+                            status_name,
+                            (x, y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            color,
+                            2
+                        )
+                        cv2.putText(
+                            frame_bgr,
+                            f"Confidence: {confidence:.1f}",
+                            (x, y + h + 25),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            color,
+                            2
+                        )
+                    except Exception as e:
+                        print(f"Face recognition error: {e}")
+
+                if len(faces) == 0:
+                    last_prediction_distance = None
+                
+                # Convert back to RGB for PIL
+                frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
             
             # Convert to PIL Image and then to JPEG
             image = Image.fromarray(frame)
@@ -74,6 +371,338 @@ def video_stream(request):
     """View to stream video frames"""
     return StreamingHttpResponse(
         generate_frames(),
+        content_type='multipart/x-mixed-replace; boundary=frame'
+    )
+
+
+def get_face_status(request):
+    """API endpoint to get current face detection status"""
+    from django.http import JsonResponse
+
+    match_score = 0
+    if last_prediction_distance is not None:
+        score = 100 - (float(last_prediction_distance) / float(MAX_CONFIDENCE_THRESHOLD)) * 100
+        match_score = max(0, min(100, score))
+    
+    return JsonResponse({
+        'recognition_enabled': face_detection_enabled,
+        'current_face': confirmed_name or 'None',
+        'confidence': frame_count / REQUIRED_CONSISTENT_FRAMES * 100 if REQUIRED_CONSISTENT_FRAMES > 0 else 0,
+        'frames_confirmed': frame_count >= REQUIRED_CONSISTENT_FRAMES,
+        'match_score': match_score,
+        'distance': last_prediction_distance,
+        'threshold': CONFIDENCE_THRESHOLD,
+        'threshold_min': MIN_CONFIDENCE_THRESHOLD,
+        'threshold_max': MAX_CONFIDENCE_THRESHOLD,
+    })
+
+
+def set_confidence_threshold(request):
+    """Set LBPH confidence threshold (higher = more lenient recognition)."""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception:
+        payload = {}
+
+    raw_value = payload.get('threshold')
+    if raw_value is None:
+        raw_value = request.POST.get('threshold')
+
+    if raw_value is None:
+        return JsonResponse({'success': False, 'error': 'threshold is required'}, status=400)
+
+    try:
+        threshold = _clamp_confidence_threshold(float(raw_value))
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'threshold must be a number'}, status=400)
+
+    global CONFIDENCE_THRESHOLD, confirmed_name, frame_count, last_prediction_distance
+    CONFIDENCE_THRESHOLD = threshold
+    confirmed_name = None
+    frame_count = 0
+    last_prediction_distance = None
+
+    return JsonResponse({
+        'success': True,
+        'threshold': CONFIDENCE_THRESHOLD,
+        'message': f'Recognition sensitivity updated to {CONFIDENCE_THRESHOLD}',
+    })
+
+
+def start_face_verification(request):
+    """Prepare face model and reset status before starting verification"""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+
+    global confirmed_name, frame_count, last_prediction_distance
+    confirmed_name = None
+    frame_count = 0
+    last_prediction_distance = None
+
+    init_face_detection()
+    success, message = train_face_model_from_dataset()
+    if not success:
+        return JsonResponse({'success': False, 'error': message}, status=400)
+
+    return JsonResponse({'success': True, 'message': message})
+
+
+def toggle_face_detection(request):
+    """API endpoint to toggle face detection on/off"""
+    from django.http import JsonResponse
+    
+    global face_detection_enabled
+    face_detection_enabled = not face_detection_enabled
+    
+    return JsonResponse({
+        'status': 'enabled' if face_detection_enabled else 'disabled',
+        'recognition_enabled': face_detection_enabled
+    })
+
+
+def generate_enrollment_frames():
+    """Generator function for enrollment with face detection only"""
+    camera = get_camera()
+    if camera is None:
+        yield b'--frame\r\n'
+        yield b'Content-Type: text/plain\r\n\r\n'
+        yield b'Camera not available\r\n'
+        return
+    
+    # Initialize face detection
+    init_face_detection()
+    
+    try:
+        from PIL import Image
+        
+        while True:
+            frame = camera.capture_array()
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+            
+            # Detect faces for enrollment
+            if face_cascade is not None:
+                faces = face_cascade.detectMultiScale(
+                    gray,
+                    scaleFactor=1.2,
+                    minNeighbors=5,
+                    minSize=(80, 80)
+                )
+                
+                # Draw rectangles around detected faces
+                for (x, y, w, h) in faces:
+                    cv2.rectangle(frame_bgr, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                    cv2.putText(
+                        frame_bgr,
+                        "Face Detected - Press Capture",
+                        (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 0),
+                        2
+                    )
+                
+                # Convert back to RGB
+                frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+            
+            # Convert to JPEG
+            image = Image.fromarray(frame)
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=85)
+            frame_bytes = buffer.getvalue()
+            
+            yield b'--frame\r\n'
+            yield b'Content-Type: image/jpeg\r\n\r\n'
+            yield frame_bytes
+            yield b'\r\n'
+            
+            time.sleep(0.03)
+    except GeneratorExit:
+        pass
+    except Exception as e:
+        print(f"Enrollment frame generation error: {e}")
+
+
+def enrollment_stream(request):
+    """Stream for face enrollment"""
+    return StreamingHttpResponse(
+        generate_enrollment_frames(),
+        content_type='multipart/x-mixed-replace; boundary=frame'
+    )
+
+
+def capture_face_image(request):
+    """Capture a single face image for enrollment"""
+    from django.http import JsonResponse
+    import base64
+    
+    camera = get_camera()
+    if camera is None:
+        return JsonResponse({'success': False, 'error': 'Camera not available'})
+    
+    init_face_detection()
+    
+    try:
+        # Capture frame
+        frame = camera.capture_array()
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        
+        # Detect faces
+        if face_cascade is not None:
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.2,
+                minNeighbors=5,
+                minSize=(80, 80)
+            )
+            
+            if len(faces) == 1:
+                # Extract face
+                x, y, w, h = faces[0]
+                face_img = gray[y:y+h, x:x+w]
+                
+                # Save to dataset directory
+                user_id = request.user.id if request.user.is_authenticated else 'guest'
+                dataset_path = FACE_DATASET_DIR / str(user_id)
+                dataset_path.mkdir(parents=True, exist_ok=True)
+                
+                # Count existing images
+                existing = len(list(dataset_path.glob("*.jpg")))
+                filename = dataset_path / f"{existing + 1}.jpg"
+                
+                # Save face image
+                cv2.imwrite(str(filename), face_img)
+                
+                return JsonResponse({
+                    'success': True,
+                    'count': existing + 1,
+                    'message': f'Face image {existing + 1} captured'
+                })
+            elif len(faces) == 0:
+                return JsonResponse({'success': False, 'error': 'No face detected'})
+            else:
+                return JsonResponse({'success': False, 'error': 'Multiple faces detected. Please ensure only one person is visible.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Unknown error'})
+
+
+def generate_verification_frames():
+    """Generator function for face verification stream with real-time recognition"""
+    global confirmed_name, frame_count, last_prediction_distance
+    
+    camera = get_camera()
+    if camera is None:
+        yield b'--frame\r\n'
+        yield b'Content-Type: text/plain\r\n\r\n'
+        yield b'Camera not available\r\n'
+        return
+    
+    init_face_detection()
+    
+    try:
+        from PIL import Image
+        
+        while True:
+            frame = camera.capture_array()
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+            
+            # Detect and recognize faces
+            if face_cascade is not None and recognizer is not None:
+                faces = face_cascade.detectMultiScale(
+                    gray,
+                    scaleFactor=1.1,
+                    minNeighbors=5,
+                    minSize=(80, 80)
+                )
+                
+                for (x, y, w, h) in faces:
+                    face_roi = gray[y:y+h, x:x+w]
+                    
+                    try:
+                        label, confidence = recognizer.predict(face_roi)
+                        last_prediction_distance = float(confidence)
+                        
+                        if confidence < CONFIDENCE_THRESHOLD:
+                            current_name = label_map.get(label, "Unknown")
+                        else:
+                            current_name = "Unknown"
+                        
+                        # Multi-frame verification
+                        if current_name == confirmed_name:
+                            frame_count += 1
+                        else:
+                            confirmed_name = current_name
+                            frame_count = 1
+                        
+                        # Set color based on verification progress
+                        if current_name == "Unknown":
+                            color = (0, 0, 255)
+                        elif frame_count >= REQUIRED_CONSISTENT_FRAMES:
+                            color = (0, 255, 0)
+                        else:
+                            color = (0, 255, 255)
+                        
+                        # Draw face oval/circle
+                        center = (x + w//2, y + h//2)
+                        axes = (w//2, int(h//1.8))
+                        cv2.ellipse(frame_bgr, center, axes, 0, 0, 360, color, 3)
+                        
+                        # Draw status
+                        if frame_count >= REQUIRED_CONSISTENT_FRAMES:
+                            status = "VERIFIED"
+                        else:
+                            status = f"Verifying... {frame_count}/{REQUIRED_CONSISTENT_FRAMES}"
+                        
+                        cv2.putText(
+                            frame_bgr,
+                            status,
+                            (x, y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            color,
+                            2
+                        )
+                    except Exception as e:
+                        print(f"Verification error: {e}")
+
+                if len(faces) == 0:
+                    last_prediction_distance = None
+                
+                frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+            
+            # Convert to JPEG
+            image = Image.fromarray(frame)
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=85)
+            frame_bytes = buffer.getvalue()
+            
+            yield b'--frame\r\n'
+            yield b'Content-Type: image/jpeg\r\n\r\n'
+            yield frame_bytes
+            yield b'\r\n'
+            
+            time.sleep(0.03)
+    except GeneratorExit:
+        pass
+    except Exception as e:
+        print(f"Verification frame generation error: {e}")
+
+
+def verification_stream(request):
+    """Stream for face verification"""
+    return StreamingHttpResponse(
+        generate_verification_frames(),
         content_type='multipart/x-mixed-replace; boundary=frame'
     )
 

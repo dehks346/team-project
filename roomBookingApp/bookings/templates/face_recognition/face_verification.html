@@ -8,11 +8,11 @@
         <h2 style="margin-bottom: 25px; text-align: center;">Face Verification</h2>
 
         <div style="background: #000; border-radius: 16px; overflow: hidden; position: relative; border: 3px solid var(--border); margin-bottom: 20px;">
-            <img id="verification-feed" src="https://picsum.photos/id/1015/800/480" 
-                 style="width: 100%; height: auto; display: block;">
+            <img id="verification-feed" src="{% url 'verification_stream' %}" 
+                 style="width: 100%; height: auto; display: block; min-height: 360px;">
             
-            <div id="face-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 220px; height: 280px; border: 3px solid var(--primary); border-radius: 50%; box-shadow: 0 0 0 6px rgba(56,189,248,0.3); display: none;">
-                <div style="position: absolute; top: -28px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #000; padding: 2px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">DETECTED</div>
+            <div id="face-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 220px; height: 280px; border: 3px solid var(--primary); border-radius: 50%; box-shadow: 0 0 0 6px rgba(56,189,248,0.3); display: block; pointer-events: none;">
+                <div style="position: absolute; top: -28px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #000; padding: 2px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">ALIGN FACE</div>
             </div>
 
             <div id="scanning-ring" style="position: absolute; top: 50%; left: 50%; width: 260px; height: 260px; border: 4px solid transparent; border-top-color: var(--primary); border-radius: 50%; animation: spin 1.2s linear infinite; display: none; transform: translate(-50%, -50%);"></div>
@@ -23,6 +23,18 @@
                 Position your face in the frame
             </p>
             <small id="status-sub" style="color: var(--text-dim);">Camera ready • Face recognition active</small>
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong>Recognition Sensitivity</strong>
+                <span id="threshold-display" class="badge badge-success">75</span>
+            </div>
+            <input type="range" id="threshold-slider" min="40" max="120" step="1" value="75"
+                   style="width: 100%;"
+                   oninput="updateThresholdLabel(this.value)"
+                   onchange="saveThreshold(this.value)">
+            <small id="threshold-hint" style="color: var(--text-dim);">Balanced • Higher value = more lenient recognition</small>
         </div>
 
         <button onclick="startVerification()" id="verify-btn"
@@ -59,34 +71,175 @@
 
 <script>
     let verificationRunning = false;
+    let verificationCheckInterval = null;
+
+    function updateThresholdLabel(value) {
+        const threshold = Number(value);
+        const display = document.getElementById('threshold-display');
+        const hint = document.getElementById('threshold-hint');
+
+        display.textContent = String(threshold);
+
+        let mode = 'Balanced';
+        if (threshold <= 60) {
+            mode = 'Strict';
+            display.className = 'badge badge-danger';
+        } else if (threshold >= 95) {
+            mode = 'Lenient';
+            display.className = 'badge badge-success';
+        } else {
+            display.className = 'badge badge-primary';
+        }
+
+        hint.textContent = `${mode} • Higher value = more lenient recognition`;
+    }
+
+    function saveThreshold(value) {
+        fetch('{% url "set_confidence_threshold" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({ threshold: Number(value) })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Failed to update sensitivity');
+            }
+
+            document.getElementById('threshold-slider').value = data.threshold;
+            updateThresholdLabel(data.threshold);
+            if (!verificationRunning) {
+                document.getElementById('status-sub').textContent = `Sensitivity set to ${data.threshold}`;
+            }
+        })
+        .catch(error => {
+            alert(`❌ ${error.message}`);
+        });
+    }
+
+    function loadThresholdSettings() {
+        fetch('{% url "face_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const slider = document.getElementById('threshold-slider');
+                slider.min = data.threshold_min;
+                slider.max = data.threshold_max;
+                slider.value = data.threshold;
+                updateThresholdLabel(data.threshold);
+            })
+            .catch(err => console.error('Threshold load error:', err));
+    }
 
     function startVerification() {
+        if (verificationRunning) {
+            return;
+        }
+
         verificationRunning = true;
         const btn = document.getElementById('verify-btn');
         const overlay = document.getElementById('face-overlay');
         const ring = document.getElementById('scanning-ring');
         const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
         
         btn.textContent = "Scanning...";
         btn.disabled = true;
         overlay.style.display = "block";
         ring.style.display = "block";
-        statusText.textContent = "Analyzing face...";
+        statusText.textContent = "Preparing verification...";
+        statusSub.textContent = "Loading enrolled user profiles";
 
-        setTimeout(() => {
-            if (verificationRunning) {
-                showResult();
+        if (verificationCheckInterval) {
+            clearInterval(verificationCheckInterval);
+            verificationCheckInterval = null;
+        }
+
+        fetch('{% url "start_face_verification" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
             }
-        }, 2100);
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Unable to start verification');
+            }
+
+            statusText.textContent = "Analyzing face...";
+            statusSub.textContent = data.message || "Camera ready • Face recognition active";
+            verificationCheckInterval = setInterval(checkVerificationStatus, 500);
+        })
+        .catch(error => {
+            alert(`❌ ${error.message}`);
+            resetVerification();
+        });
     }
 
-    function showResult() {
+    function checkVerificationStatus() {
+        if (!verificationRunning) {
+            return;
+        }
+
+        fetch('{% url "face_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const statusText = document.getElementById('status-text');
+                const statusSub = document.getElementById('status-sub');
+                const matchScore = Math.round(data.match_score || 0);
+                
+                if (data.current_face && data.current_face !== 'None') {
+                    statusText.textContent = `Detected: ${data.current_face}`;
+                    statusSub.textContent = `Match score: ${matchScore}% • Threshold: ${data.threshold}`;
+                    
+                    // If confirmed, show result
+                    if (data.frames_confirmed && verificationRunning) {
+                        clearInterval(verificationCheckInterval);
+                        showResult(data.current_face, matchScore);
+                    }
+                } else {
+                    statusText.textContent = "Position your face in the frame";
+                    statusSub.textContent = `Looking for face... • Threshold: ${data.threshold}`;
+                }
+            })
+            .catch(err => console.error('Verification check error:', err));
+    }
+
+    function showResult(name, confidence) {
         verificationRunning = false;
-        document.getElementById('result-overlay').style.display = "flex";
+        
+        const resultOverlay = document.getElementById('result-overlay');
+        const resultIcon = document.getElementById('result-icon');
+        const resultTitle = document.getElementById('result-title');
+        const resultName = document.getElementById('result-name');
+        const resultConfidence = document.getElementById('result-confidence');
+        
+        if (name !== 'Unknown') {
+            resultIcon.textContent = '✅';
+            resultIcon.style.color = 'var(--success)';
+            resultTitle.textContent = 'Access Granted';
+            resultTitle.style.color = 'var(--success)';
+            resultName.textContent = name;
+            resultConfidence.textContent = `${confidence}% match score`;
+            resultConfidence.style.color = 'var(--success)';
+        } else {
+            resultIcon.textContent = '❌';
+            resultIcon.style.color = 'var(--danger)';
+            resultTitle.textContent = 'Access Denied';
+            resultTitle.style.color = 'var(--danger)';
+            resultName.textContent = 'Unknown User';
+            resultConfidence.textContent = `${confidence}% match score`;
+            resultConfidence.style.color = 'var(--danger)';
+        }
+        
+        resultOverlay.style.display = 'flex';
     }
 
     function hideResultOverlay() {
-        document.getElementById('result-overlay').style.display = "none";
+        document.getElementById('result-overlay').style.display = 'none';
         resetVerification();
     }
 
@@ -96,29 +249,60 @@
 
     function cancelVerification() {
         if (confirm("Cancel face verification?")) {
+            if (verificationCheckInterval) {
+                clearInterval(verificationCheckInterval);
+            }
             resetVerification();
         }
     }
 
     function resetVerification() {
         verificationRunning = false;
+        if (verificationCheckInterval) {
+            clearInterval(verificationCheckInterval);
+            verificationCheckInterval = null;
+        }
+        
         const btn = document.getElementById('verify-btn');
         const overlay = document.getElementById('face-overlay');
         const ring = document.getElementById('scanning-ring');
         const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
 
         btn.textContent = "🔍 Start Face Verification";
         btn.disabled = false;
-        overlay.style.display = "none";
+        overlay.style.display = "block";
         ring.style.display = "none";
         statusText.textContent = "Position your face in the frame";
+        statusSub.textContent = "Camera ready • Face recognition active";
     }
 
     document.addEventListener('keydown', function(e) {
-        if (e.key === "Enter" && !document.getElementById('result-overlay').style.display) {
+        if (e.key === "Enter" && !verificationRunning) {
             startVerification();
         }
     });
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Initialize
+    window.onload = () => {
+        loadThresholdSettings();
+        console.log('📹 Raspberry Pi verification stream active');
+    };
 </script>
 
 <style>

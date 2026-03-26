@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from picamera2 import Picamera2
 
-name = "elliot"  # CHANGE THIS
+name = "jed"  # CHANGE THIS
 save_path = f"dataset/{name}"
 
 os.makedirs(save_path, exist_ok=True)
