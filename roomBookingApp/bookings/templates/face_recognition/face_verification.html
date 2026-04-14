@@ -11,10 +11,6 @@
             <img id="verification-feed" src="{% url 'verification_stream' %}" 
                  style="width: 100%; height: auto; display: block; min-height: 360px;">
             
-            <div id="face-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 220px; height: 280px; border: 3px solid var(--primary); border-radius: 50%; box-shadow: 0 0 0 6px rgba(56,189,248,0.3); display: block; pointer-events: none;">
-                <div style="position: absolute; top: -28px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #000; padding: 2px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">ALIGN FACE</div>
-            </div>
-
             <div id="scanning-ring" style="position: absolute; top: 50%; left: 50%; width: 260px; height: 260px; border: 4px solid transparent; border-top-color: var(--primary); border-radius: 50%; animation: spin 1.2s linear infinite; display: none; transform: translate(-50%, -50%);"></div>
         </div>
 
@@ -56,7 +52,7 @@
             <p id="result-confidence" style="color: var(--success); font-weight: 600;">98% match</p>
             
             <div style="margin: 25px 0;">
-                <button onclick="proceedToAccessResult()" class="btn btn-primary" style="width: 100%;">
+                <button id="result-continue-btn" onclick="proceedToAccessResult()" class="btn btn-primary" style="width: 100%;">
                     Continue to Room
                 </button>
             </div>
@@ -72,6 +68,7 @@
 <script>
     let verificationRunning = false;
     let verificationCheckInterval = null;
+    let verifiedRedirectUrl = null;
 
     function updateThresholdLabel(value) {
         const threshold = Number(value);
@@ -140,14 +137,12 @@
 
         verificationRunning = true;
         const btn = document.getElementById('verify-btn');
-        const overlay = document.getElementById('face-overlay');
         const ring = document.getElementById('scanning-ring');
         const statusText = document.getElementById('status-text');
         const statusSub = document.getElementById('status-sub');
         
         btn.textContent = "Scanning...";
         btn.disabled = true;
-        overlay.style.display = "block";
         ring.style.display = "block";
         statusText.textContent = "Preparing verification...";
         statusSub.textContent = "Loading enrolled user profiles";
@@ -198,7 +193,11 @@
                     // If confirmed, show result
                     if (data.frames_confirmed && verificationRunning) {
                         clearInterval(verificationCheckInterval);
-                        showResult(data.current_face, matchScore);
+                        if (data.current_face !== 'Unknown') {
+                            completeFaceLogin(data.current_face, matchScore);
+                        } else {
+                            showResult(data.current_face, matchScore, false);
+                        }
                     }
                 } else {
                     statusText.textContent = "Position your face in the frame";
@@ -208,7 +207,33 @@
             .catch(err => console.error('Verification check error:', err));
     }
 
-    function showResult(name, confidence) {
+    function completeFaceLogin(name, confidence) {
+        const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
+        statusText.textContent = 'Face verified';
+        statusSub.textContent = 'Creating secure login session...';
+
+        fetch('{% url "complete_face_login" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            }
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Unable to complete face login');
+            }
+
+            showResult(data.user || name, confidence, true, data.redirect_url || '{% url "home" %}');
+        })
+        .catch(error => {
+            showResult('Unknown', confidence, false);
+            alert(`❌ ${error.message}`);
+        });
+    }
+
+    function showResult(name, confidence, granted = (name !== 'Unknown'), redirectUrl = null) {
         verificationRunning = false;
         
         const resultOverlay = document.getElementById('result-overlay');
@@ -216,8 +241,9 @@
         const resultTitle = document.getElementById('result-title');
         const resultName = document.getElementById('result-name');
         const resultConfidence = document.getElementById('result-confidence');
+        const continueBtn = document.getElementById('result-continue-btn');
         
-        if (name !== 'Unknown') {
+        if (granted) {
             resultIcon.textContent = '✅';
             resultIcon.style.color = 'var(--success)';
             resultTitle.textContent = 'Access Granted';
@@ -225,6 +251,13 @@
             resultName.textContent = name;
             resultConfidence.textContent = `${confidence}% match score`;
             resultConfidence.style.color = 'var(--success)';
+            continueBtn.textContent = 'Continue to Dashboard';
+            verifiedRedirectUrl = redirectUrl || '{% url "home" %}';
+            setTimeout(() => {
+                if (verifiedRedirectUrl) {
+                    window.location.href = verifiedRedirectUrl;
+                }
+            }, 1200);
         } else {
             resultIcon.textContent = '❌';
             resultIcon.style.color = 'var(--danger)';
@@ -233,6 +266,8 @@
             resultName.textContent = 'Unknown User';
             resultConfidence.textContent = `${confidence}% match score`;
             resultConfidence.style.color = 'var(--danger)';
+            continueBtn.textContent = 'Try Again';
+            verifiedRedirectUrl = null;
         }
         
         resultOverlay.style.display = 'flex';
@@ -240,11 +275,17 @@
 
     function hideResultOverlay() {
         document.getElementById('result-overlay').style.display = 'none';
+        verifiedRedirectUrl = null;
         resetVerification();
     }
 
     function proceedToAccessResult() {
-        window.location.href = "{% url 'access_result' %}";
+        if (verifiedRedirectUrl) {
+            window.location.href = verifiedRedirectUrl;
+            return;
+        }
+
+        hideResultOverlay();
     }
 
     function cancelVerification() {
@@ -264,14 +305,12 @@
         }
         
         const btn = document.getElementById('verify-btn');
-        const overlay = document.getElementById('face-overlay');
         const ring = document.getElementById('scanning-ring');
         const statusText = document.getElementById('status-text');
         const statusSub = document.getElementById('status-sub');
 
         btn.textContent = "🔍 Start Face Verification";
         btn.disabled = false;
-        overlay.style.display = "block";
         ring.style.display = "none";
         statusText.textContent = "Position your face in the frame";
         statusSub.textContent = "Camera ready • Face recognition active";

@@ -3,16 +3,21 @@ from django.contrib.auth.views import LoginView, LogoutView, PasswordResetView, 
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.views.generic import TemplateView, CreateView, UpdateView, ListView, DetailView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.contrib.auth import logout
-from django.urls import reverse_lazy
+from django.contrib.auth import logout, login
+from django.urls import reverse_lazy, reverse
 from django.contrib.auth.models import User
 from django.http import StreamingHttpResponse
 import io
 import json
+import sys
 import time
 import cv2
 import numpy as np
 from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from Face_Recognition.model_state import build_dataset_fingerprint, dataset_requires_retraining, save_training_state
 
 
 # Camera streaming setup
@@ -37,6 +42,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FACE_RECOGNITION_DIR = PROJECT_ROOT / "Face_Recognition"
 FACE_DATASET_DIR = FACE_RECOGNITION_DIR / "dataset"
 FACE_MODEL_PATH = FACE_RECOGNITION_DIR / "face_model.yml"
+FACE_MODEL_STATE_PATH = FACE_RECOGNITION_DIR / "face_model_state.json"
 LABEL_MAP_PATHS = [
     PROJECT_ROOT / "label_map.json",
     FACE_RECOGNITION_DIR / "label_map.json",
@@ -52,6 +58,51 @@ def _resolve_identity_name(raw_identity):
             return full_name or user.username or f"User {identity}"
         return f"User {identity}"
     return identity
+
+
+def _match_user_by_identity(identity_name):
+    if not identity_name:
+        return None
+
+    value = str(identity_name).strip()
+    if not value or value == "Unknown":
+        return None
+
+    if value.isdigit():
+        matched_user = User.objects.filter(id=int(value), is_active=True).first()
+        if matched_user:
+            return matched_user
+
+    if value.lower().startswith("user "):
+        user_id = value[5:].strip()
+        if user_id.isdigit():
+            matched_user = User.objects.filter(id=int(user_id), is_active=True).first()
+            if matched_user:
+                return matched_user
+
+    matched_user = User.objects.filter(username__iexact=value, is_active=True).first()
+    if matched_user:
+        return matched_user
+
+    matched_user = User.objects.filter(email__iexact=value, is_active=True).first()
+    if matched_user:
+        return matched_user
+
+    name_parts = value.split()
+    if len(name_parts) >= 2:
+        matched_user = User.objects.filter(
+            first_name__iexact=name_parts[0],
+            last_name__iexact=" ".join(name_parts[1:]),
+            is_active=True,
+        ).first()
+        if matched_user:
+            return matched_user
+
+    for candidate in User.objects.filter(is_active=True):
+        if candidate.get_full_name().strip().lower() == value.lower():
+            return candidate
+
+    return None
 
 
 def _clamp_confidence_threshold(value):
@@ -147,12 +198,22 @@ def train_face_model_from_dataset():
         recognizer = trained_recognizer
         label_map = trained_label_map
         _write_label_map_to_disk(label_map)
+        save_training_state(FACE_MODEL_STATE_PATH, build_dataset_fingerprint(FACE_DATASET_DIR))
 
         return True, f"Model ready with {len(label_map)} enrolled user(s)."
     except Exception as error:
         recognizer = None
         label_map = {}
         return False, f"Could not train face model: {error}"
+
+
+def _face_dataset_needs_refresh():
+    """Return True when new face data has been added since the last train."""
+    if not FACE_DATASET_DIR.exists():
+        return False
+
+    return dataset_requires_retraining(FACE_DATASET_DIR, FACE_MODEL_STATE_PATH)
+
 
 def init_face_detection():
     """Initialize face detection and recognition models"""
@@ -186,6 +247,15 @@ def init_face_detection():
                 print("ERROR: Could not load face cascade!")
                 return False
         
+        # Retrain automatically when new face data was added.
+        if _face_dataset_needs_refresh():
+            print("New face data detected. Retraining the face model...")
+            success, message = train_face_model_from_dataset()
+            print(message)
+            if not success:
+                recognizer = None
+                return False
+
         # Try to load recognizer model (optional - not needed for enrollment)
         if recognizer is None:
             if FACE_MODEL_PATH.exists():
@@ -452,6 +522,41 @@ def start_face_verification(request):
         return JsonResponse({'success': False, 'error': message}, status=400)
 
     return JsonResponse({'success': True, 'message': message})
+
+
+def complete_face_login(request):
+    """Create a Django login session after successful face verification."""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+
+    global confirmed_name, frame_count, last_prediction_distance
+
+    is_verified = (
+        confirmed_name is not None
+        and confirmed_name != "Unknown"
+        and frame_count >= REQUIRED_CONSISTENT_FRAMES
+    )
+    if not is_verified:
+        return JsonResponse({'success': False, 'error': 'Face verification not completed'}, status=403)
+
+    matched_user = _match_user_by_identity(confirmed_name)
+    if matched_user is None:
+        return JsonResponse({'success': False, 'error': f'No active user matches {confirmed_name}'}, status=404)
+
+    login(request, matched_user, backend='django.contrib.auth.backends.ModelBackend')
+    request.session['face_login_verified'] = True
+
+    confirmed_name = None
+    frame_count = 0
+    last_prediction_distance = None
+
+    return JsonResponse({
+        'success': True,
+        'user': matched_user.get_full_name().strip() or matched_user.username,
+        'redirect_url': reverse('home'),
+    })
 
 
 def toggle_face_detection(request):
@@ -811,7 +916,7 @@ class BookingInvitationView(DebugLoginRequiredMixin, TemplateView):
 class FaceEnrollmentView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'face_recognition/face_enrollment.html'
 
-class FaceVerificationView(DebugLoginRequiredMixin, TemplateView):
+class FaceVerificationView(TemplateView):
     template_name = 'face_recognition/face_verification.html'
 
 class AccessResultView(DebugLoginRequiredMixin, TemplateView):

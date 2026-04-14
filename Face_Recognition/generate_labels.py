@@ -1,11 +1,15 @@
-import os 
+import os
 import json
+from pathlib import Path
 
-dataset_path = 'dataset'
+dataset_path = Path('dataset')
 
 label_map = {}
 
-people = os.listdir(dataset_path)
+people = sorted(
+    [path.name for path in dataset_path.iterdir() if path.is_dir()],
+    key=str.lower,
+)
 
 for i, person in enumerate(people):
     label_map[i] = person
