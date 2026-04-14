@@ -92,7 +92,6 @@ class Room(models.Model):
         ordering = ['room_id']
 
 
-
 class UserProfile(models.Model):
     """Entity UserProfile"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
