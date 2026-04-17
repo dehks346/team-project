@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Create Room{% endblock %}
+{% block title %}Create New Room{% endblock %}
 
 {% block content %}
 <div style="max-width: 860px; margin: 40px auto;">
@@ -7,134 +7,107 @@
     <div class="card">
         <h2 style="margin-bottom: 25px;">Create New Room</h2>
 
+        {% if messages %}
+            {% for message in messages %}
+                {% if message.tags == 'success' %}
+                    <div style="padding: 12px 16px; margin-bottom: 20px; border-radius: 8px; background:#d4edda; color:#155724;">
+                {% else %}
+                    <div style="padding: 12px 16px; margin-bottom: 20px; border-radius: 8px; background:#f8d7da; color:#721c24;">
+                {% endif %}
+                        {{ message }}
+                    </div>
+            {% endfor %}
+        {% endif %}
+
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
 
             <div style="margin-bottom: 28px;">
-                <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Room Name</label>
-                <input type="text" id="room-name" placeholder="e.g. Conference Room B" required
-                       style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Room Name / Location</label>
+                {{ form.location }}
+                {% if form.location.errors %}
+                    <div class="errorlist">{{ form.location.errors }}</div>
+                {% endif %}
             </div>
 
             <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
                 <div>
                     <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Capacity (people)</label>
-                    <input type="number" id="capacity" value="8" min="1" max="50" required
-                           style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                    {{ form.capacity }}
+                    {% if form.capacity.errors %}
+                        <div class="errorlist">{{ form.capacity.errors }}</div>
+                    {% endif %}
                 </div>
+
                 <div>
-                    <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Floor / Location</label>
-                    <input type="text" placeholder="Floor 2 • West Wing" 
-                           style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                    <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Room Type</label>
+                    {{ form.room_type }}
+                    {% if form.room_type.errors %}
+                        <div class="errorlist">{{ form.room_type.errors }}</div>
+                    {% endif %}
                 </div>
             </div>
 
             <div style="margin-bottom: 28px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 10px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 1rem;">
-                    <input type="checkbox" id="face-required" checked style="accent-color: var(--primary); width: 20px; height: 20px;">
-                    <span><strong>Face Recognition Required</strong> for door access</span>
+                    {{ form.is_active }}
+                    <span><strong>Room is Active</strong> and bookable</span>
                 </label>
                 <p style="margin: 8px 0 0 32px; color: var(--text-dim); font-size: 0.9rem;">
-                    Users must enroll their face to enter this room
+                    Users will be able to see and book this room
                 </p>
             </div>
 
-            <div style="margin-bottom: 28px;">
-                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-                    <input type="checkbox" id="approval-required">
-                    <span>Require admin approval for bookings</span>
+            <!-- Temporary feature placeholder until added to model -->
+            <div style="margin-bottom: 28px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 10px;">
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 1rem;">
+                    <input type="checkbox" name="face_recognition_required" checked style="accent-color: var(--primary); width: 20px; height: 20px;">
+                    <span><strong>Face Recognition Required</strong> for door access</span>
                 </label>
-            </div>
-
-            <div style="margin-bottom: 28px;">
-                <label style="display: block; margin-bottom: 8px; color: var(--text-dim);">Equipment</label>
-                <div style="display: flex; flex-wrap: wrap; gap: 10px;" id="equipment-chips">
-                </div>
-                <div style="margin-top: 12px; display: flex; gap: 8px;">
-                    <input type="text" id="equip-input" placeholder="Add equipment (e.g. 4K TV)" 
-                           style="flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
-                    <button type="button" onclick="addEquipment()" class="btn btn-outline">Add</button>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 28px;">
-                <label style="display: block; margin-bottom: 8px; color: var(--text-dim);">Operating Hours</label>
-                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div>
-                        <small style="color: var(--text-dim);">Open</small>
-                        <input type="time" value="07:00" style="width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
-                    </div>
-                    <div>
-                        <small style="color: var(--text-dim);">Close</small>
-                        <input type="time" value="22:00" style="width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
-                    </div>
-                </div>
+                <p style="margin: 8px 0 0 32px; color: var(--text-dim); font-size: 0.9rem;">
+                    Users must enroll their face to enter this room (feature ready on Raspberry Pi)
+                </p>
             </div>
 
             <div style="margin-bottom: 30px;">
-                <label style="display: block; margin-bottom: 8px; color: var(--text-dim);">Room Photo (optional)</label>
-                <div style="border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer;"
-                     onclick="document.getElementById('room-image').click()">
-                    <div id="image-preview" style="display: none; margin-bottom: 15px;">
-                        <img id="preview-img" style="max-height: 180px; border-radius: 8px;">
-                    </div>
-                    <p style="margin: 0; color: var(--text-dim);">Click to upload image (JPG/PNG)</p>
-                </div>
-                <input type="file" id="room-image" accept="image/*" style="display: none;" onchange="previewImage(event)">
+                <button type="submit"
+                        class="btn btn-primary"
+                        style="width: 100%; padding: 16px; font-size: 1.1rem;">
+                    🏠 Create Room
+                </button>
             </div>
-
-            <button type="submit" onclick="return createRoom()" 
-                    class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 1.1rem;">
-                🏠 Create Room
-            </button>
         </form>
     </div>
 
 </div>
 
+<style>
+    input, select {
+        width: 100%;
+        padding: 14px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-size: 1rem;
+    }
+
+    input:focus, select:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+
+    .errorlist {
+        color: #e74c3c;
+        font-size: 0.9rem;
+        margin-top: 4px;
+    }
+</style>
+
 <script>
-    function addEquipment() {
-        const input = document.getElementById('equip-input');
-        const value = input.value.trim();
-        if (!value) return;
-        
-        const container = document.getElementById('equipment-chips');
-        const chip = document.createElement('div');
-        chip.style.cssText = 'background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;';
-        chip.innerHTML = `
-            ${value}
-            <span onclick="this.parentElement.remove()" style="cursor: pointer; font-size: 1.3rem; line-height: 1;">×</span>
-        `;
-        container.appendChild(chip);
-        input.value = '';
-    }
-
-    function previewImage(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const preview = document.getElementById('image-preview');
-            const img = document.getElementById('preview-img');
-            img.src = e.target.result;
-            preview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function createRoom() {
-        const name = document.getElementById('room-name').value;
-        if (!name) {
-            alert("Please enter a room name");
-            return false;
-        }
-        alert(`✅ Room "${name}" created successfully!\n\nFace recognition and access rules are now active on the Raspberry Pi.`);
-        return true;
-    }
-
     window.onload = () => {
-        document.getElementById('room-name').focus();
+        const firstInput = document.querySelector('input[name="location"]');
+        if (firstInput) firstInput.focus();
     };
 </script>
 {% endblock %}

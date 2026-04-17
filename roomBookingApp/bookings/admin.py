@@ -37,7 +37,7 @@ class RecordAdmin(admin.ModelAdmin):
 
 @admin.register(Organisation)
 class OrganisationAdmin(admin.ModelAdmin):
-    list_display = ['organisation_id', 'name', 'email_address', 'phone_number', 'number_of_users', 'number_of_rooms',
+    list_display = ['organisation_id', 'name', 'email_address', 'phone_number', 'number_of_rooms',
                     'fee']
     list_filter = ['created_at']
     search_fields = ['name', 'email_address', 'unique_access_code']

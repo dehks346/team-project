@@ -15,7 +15,6 @@ class Organisation(models.Model):
     # Basic Info
     name = models.CharField(max_length=200, unique=True)
     email_address = models.EmailField(unique=True)
-    password = models.CharField(max_length=128)  # Store password
     unique_access_code = models.CharField(max_length=50, unique=True, help_text="Unique code for organisation access")
     phone_number = models.CharField(max_length=20)
     address = models.TextField()
@@ -24,12 +23,15 @@ class Organisation(models.Model):
     fee = models.DecimalField(max_digits=10, decimal_places=2, help_text="Monthly fee")
 
     # Stats (can be calculated, but stored for quick access)
-    number_of_users = models.PositiveIntegerField(default=0, help_text="Total users in organisation")
     number_of_rooms = models.PositiveIntegerField(default=0, help_text="Total rooms owned by organisation")
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def user_count(self):
+        return self.users.count()
 
     def __str__(self):
         return self.name
@@ -93,31 +95,16 @@ class Room(models.Model):
 
 
 class UserProfile(models.Model):
-    """Entity UserProfile"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='users', null=True,
-                                     blank=True)
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
 
-    name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    @property
-    def total_bookings(self):
-        """bookings made by user (total)"""
-        return self.bookings.count()
-
-    @property
-    def upcoming_bookings(self):
-        return self.bookings.filter(booking_datetime__gte=timezone.now(), status='CONFIRMED').count()
-
     def __str__(self):
-        return self.name
+        return self.user.get_full_name() or self.user.username
 
-    class Meta:
-        ordering = ['name']
 
 # MOVED Record class ABOVE Booking to fix import issue
 class Record(models.Model):
@@ -267,3 +254,11 @@ class Access(models.Model):
         verbose_name_plural = "Access"
 
 
+class Notification(models.Model):
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.message

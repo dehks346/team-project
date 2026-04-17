@@ -7,12 +7,40 @@ from django.contrib.auth import logout, login
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.models import User
 from django.http import StreamingHttpResponse
+from django.utils import timezone
+from .models import Booking
 import io
+from django.shortcuts import get_object_or_404
+from .models import Room, Booking
 import json
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from .models import Booking, Record
+from django.views.generic.edit import CreateView
+from django.urls import reverse_lazy
+from django.contrib import messages
+from .models import Booking
+from .forms import BookingForm, BookingEditForm
+from django.views.generic.edit import CreateView
+from django.urls import reverse_lazy
+from django.contrib import messages
+from .models import Room
+from .forms import RoomForm
+from django.utils import timezone
+from datetime import timedelta
+from .models import Room, Booking, Access
 import sys
 import time
+from django.utils import timezone
+from datetime import timedelta
+from .models import Room, Booking, Access
 import cv2
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.views import View
 import numpy as np
+from .forms import CustomUserCreationForm
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -833,10 +861,49 @@ class DebugAdminRequiredMixin(AdminRequiredMixin):
 class CustomLoginView(LoginView):
     template_name = 'auth/login.html'
 
-class CustomRegisterView(CreateView):
-    form_class = UserCreationForm 
+class CustomRegisterView(View):
     template_name = 'auth/register.html'
-    success_url = reverse_lazy('home')
+
+    def get(self, request):
+        return render(request, self.template_name)
+
+    def post(self, request):
+        name = request.POST.get('name')
+        email = request.POST.get('email')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
+        role = request.POST.get('role')
+
+        # Basic validation
+        if password1 != password2:
+            messages.error(request, "Passwords do not match")
+            return redirect('register')
+
+        if User.objects.filter(username=email).exists():
+            messages.error(request, "Email already in use")
+            return redirect('register')
+
+        # Split name
+        first_name = name.split(' ')[0]
+        last_name = ' '.join(name.split(' ')[1:]) if len(name.split()) > 1 else ''
+
+        # Create user
+        user = User.objects.create_user(
+            username=email,  # using email as username
+            email=email,
+            password=password1,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+        # Handle role (optional)
+        if role == 'admin':
+            user.is_staff = True
+            user.save()
+
+        login(request, user)
+
+        return redirect('home')
 
 class CustomPasswordResetView(PasswordResetView):
     template_name = 'auth/password_reset.html'
@@ -853,18 +920,108 @@ def custom_logout(request):
     logout(request)
     return redirect('login')
 
+@login_required
+@require_POST
+def cancel_booking(request, booking_id):
+    try:
+        profile = request.user.userprofile
+        booking = Booking.objects.get(
+            booking_id=booking_id,
+            user=profile,
+            status='CONFIRMED'
+        )
+
+        if not booking.can_cancel:
+            return JsonResponse({'success': False, 'error': 'This booking cannot be cancelled anymore.'}, status=400)
+
+        booking.status = 'CANCELLED'
+        booking.save()
+
+        # Create audit record
+        Record.objects.create(
+            booking=booking,
+            action='BOOKING_CANCELLED',
+            description=f"Booking cancelled for {booking.room.location}"
+        )
+
+        return JsonResponse({'success': True, 'message': 'Booking cancelled successfully.'})
+
+    except Booking.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Booking not found or you cannot cancel it.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 class HomeView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'dashboard/home.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = self.request.user.userprofile
+        organisation = profile.organisation
+
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        week_end = today_start + timedelta(days=7)
+
+        # Real stats
+        context['bookings_today'] = Booking.objects.filter(
+            user=profile,
+            booking_datetime__gte=today_start,
+            booking_datetime__lt=today_end,
+            status='CONFIRMED'
+        ).count()
+
+        context['rooms_available'] = Room.objects.filter(
+            organisation=organisation,
+            is_active=True
+        ).count()   # You can make this smarter later using .is_available
+
+        context['pending_invites'] = 0  # We'll implement invitations later if needed
+
+        # Real data for tables
+        context['today_bookings'] = Booking.objects.filter(
+            user=profile,
+            booking_datetime__gte=today_start,
+            booking_datetime__lt=today_end,
+            status='CONFIRMED'
+        ).select_related('room')[:5]
+
+        context['upcoming_bookings'] = Booking.objects.filter(
+            user=profile,
+            booking_datetime__gte=timezone.now(),
+            status='CONFIRMED'
+        ).order_by('booking_datetime')[:6]
+
+        context['managed_rooms'] = Room.objects.filter(
+            organisation=organisation,
+            is_active=True
+        )[:5]
+
+        # Rooms user can access = all active rooms in organisation for now
+        context['accessible_rooms'] = Room.objects.filter(
+            organisation=organisation,
+            is_active=True
+        )[:5]
+
+        # Recent access attempts (real data)
+        context['recent_access'] = Access.objects.filter(
+            room__organisation=organisation
+        ).select_related('room', 'user')[:5]
+
+        return context
 
 class LiveFeedView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'live_system/live_feed.html'
 
-class UserProfileView(DebugLoginRequiredMixin, DetailView):
-    model = User
+class UserProfileView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'user_management/user_profile.html'
-    context_object_name = 'user_obj'
-    def get_object(self):
-        return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = self.request.user.userprofile
+        context['profile'] = profile
+        context['bookings_count'] = profile.bookings.count()
+        return context
 
 class UserEditView(DebugLoginRequiredMixin, UpdateView):
     model = User
@@ -878,19 +1035,95 @@ class UserEditView(DebugLoginRequiredMixin, UpdateView):
 class UserNotificationsView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'user_management/user_notifications.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        profile = self.request.user.userprofile
+
+        context['notifications'] = profile.notifications.all().order_by('-created_at')
+
+        return context
+
 class UserManagementView(DebugAdminRequiredMixin, ListView):
     model = User
     template_name = 'user_management/user_management.html'
     context_object_name = 'users'
 
+from .models import Room
+
 class RoomListView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_list.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = self.request.user.userprofile
+
+        rooms = Room.objects.filter(
+            organisation=profile.organisation
+        ).order_by('location')
+
+        context['rooms'] = rooms
+        context['total_rooms'] = rooms.count()
+
+        return context
 
 class RoomOverviewView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_overview.html'
 
-class RoomCreationView(DebugLoginRequiredMixin, TemplateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = self.request.user.userprofile
+
+        room_id = self.request.GET.get('room_id')
+
+        try:
+            if room_id:
+                room = get_object_or_404(Room, room_id=room_id, organisation=profile.organisation)
+            else:
+                # Fallback: show first active room
+                room = Room.objects.filter(
+                    organisation=profile.organisation, 
+                    is_active=True
+                ).first()
+        except:
+            room = None
+
+        if not room:
+            context['room'] = None
+            context['error'] = "Room not found or you don't have access to it."
+            return context
+
+        context['room'] = room
+
+        # Real upcoming bookings for this specific room
+        context['upcoming_bookings'] = Booking.objects.filter(
+            room=room,
+            booking_datetime__gte=timezone.now(),
+            status='CONFIRMED'
+        ).select_related('user__user').order_by('booking_datetime')[:6]
+
+        # Recent access attempts for this room
+        context['recent_access'] = Access.objects.filter(
+            room=room
+        ).select_related('user__user').order_by('-access_datetime')[:5]
+
+        return context
+
+class RoomCreationView(DebugLoginRequiredMixin, CreateView):
+    model = Room
+    form_class = RoomForm
     template_name = 'room_management/room_creation.html'
+    success_url = reverse_lazy('room_list')
+
+    def form_valid(self, form):
+        # Automatically assign the room to the user's organisation
+        form.instance.organisation = self.request.user.userprofile.organisation
+        messages.success(self.request, f'Room "{form.instance.location}" created successfully!')
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, 'Please correct the errors below.')
+        return super().form_invalid(form)
 
 class RoomEditView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_edit.html'
@@ -901,14 +1134,87 @@ class RoomPermissionsView(DebugLoginRequiredMixin, TemplateView):
 class RoomLogView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_log.html'
 
-class BookingCreationView(DebugLoginRequiredMixin, TemplateView):
-    template_name = 'booking_system/booking_creation.html'
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = self.request.user.userprofile
 
-class BookingEditView(DebugLoginRequiredMixin, TemplateView):
+        context['records'] = Record.objects.filter(
+            room__organisation=profile.organisation
+        ).select_related('booking', 'room', 'user').order_by('-timestamp')[:50]
+
+        return context
+
+class BookingCreationView(DebugLoginRequiredMixin, CreateView):
+    model = Booking
+    form_class = BookingForm
+    template_name = 'booking_system/booking_creation.html'
+    success_url = reverse_lazy('my_bookings')   # or 'room_list' if you prefer
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user.userprofile
+        messages.success(self.request, f'Booking for {form.instance.room.location} created successfully!')
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, 'Please fix the errors below.')
+        return super().form_invalid(form)
+
+    def get_initial(self):
+        initial = super().get_initial()
+        room_id = self.request.GET.get('room_id')
+        if room_id:
+            try:
+                initial['room'] = int(room_id)
+            except:
+                pass
+        return initial
+
+class BookingEditView(DebugLoginRequiredMixin, UpdateView):
+    model = Booking
+    form_class = BookingEditForm
     template_name = 'booking_system/booking_edit.html'
+    success_url = reverse_lazy('my_bookings')
+
+    def get_queryset(self):
+        return Booking.objects.filter(user=self.request.user.userprofile)
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Booking updated successfully!')
+        return super().form_valid(form)
+
+from .models import Booking
 
 class MyBookingsView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/my_bookings.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = self.request.user.userprofile
+
+        # Upcoming: Confirmed bookings in the future
+        context['upcoming_bookings'] = Booking.objects.filter(
+            user=profile,
+            booking_datetime__gte=timezone.now(),
+            status='CONFIRMED'
+        ).select_related('room').order_by('booking_datetime')
+
+        # Past: All bookings that are either in the past OR cancelled/completed
+        context['past_bookings'] = Booking.objects.filter(
+            user=profile
+        ).exclude(
+            booking_datetime__gte=timezone.now(),
+            status='CONFIRMED'
+        ).select_related('room').order_by('-booking_datetime')
+
+        context['has_upcoming'] = context['upcoming_bookings'].exists()
+        context['has_past'] = context['past_bookings'].exists()
+
+        return context
 
 class BookingInvitationView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/booking_invitation.html'

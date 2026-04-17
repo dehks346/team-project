@@ -5,7 +5,7 @@
 <div class="card" style="max-width: 1100px; margin: 0 auto;">
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-        <h2 style="margin: 0;">All Rooms</h2>
+        <h2 style="margin: 0;">All Rooms ({{ total_rooms }})</h2>
         
         <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
             <input type="text" id="room-search" placeholder="Search rooms..." 
@@ -30,79 +30,53 @@
 
     <div id="rooms-grid" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
 
-        <div class="card room-card" data-name="conference room a" data-status="available" data-facerec="true">
+        {% for room in rooms %}
+        <div class="card room-card" 
+             data-name="{{ room.location|lower }}"
+             data-status="{% if room.is_available %}available{% else %}occupied{% endif %}"
+             data-facerec="true">  <!-- You can make this dynamic later if you add a field -->
+
             <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Conference Room A</h3>
-                <span class="badge badge-success">Available Now</span>
+                <h3 style="margin: 0;">{{ room.location }}</h3>
+                <span class="badge {% if room.is_available %}badge-success{% else %}badge-danger{% endif %}">
+                    {{ room.availability_status }}
+                </span>
             </div>
             
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 12</span>
-                <span style="color: var(--success);">● Face Rec Required</span>
+                <span>👥 {{ room.capacity }}</span>
+                <span style="color: var(--success);">● {{ room.get_room_type_display }}</span>
             </div>
 
             <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
+                <a href="{% url 'room_overview' %}?room_id={{ room.room_id }}" 
+                class="btn btn-primary" style="flex: 1; text-align: center;">
+                 View Details
+             </a>                
+             <a href="{% url 'booking_creation' %}?room_id={{ room.room_id }}" 
+             class="btn btn-outline" style="flex: 1; text-align: center;">
+              Book Now
+                </a>
             </div>
         </div>
-
-        <div class="card room-card" data-name="lab 3" data-status="occupied" data-facerec="true">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Lab 3</h3>
-                <span class="badge badge-danger">Occupied</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 8</span>
-                <span style="color: var(--success);">● Face Rec Required</span>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
-            </div>
+        {% empty %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+            <div style="font-size: 3.5rem; margin-bottom: 15px;">🏠</div>
+            <h3>No rooms found</h3>
+            <p>Your organisation doesn't have any rooms yet.</p>
+            {% if user.is_superuser or request.session.debug_no_login %}
+            <a href="{% url 'room_creation' %}" class="btn btn-primary" style="margin-top: 20px;">
+                + Create Your First Room
+            </a>
+            {% endif %}
         </div>
-
-        <div class="card room-card" data-name="meeting pod b" data-status="available" data-facerec="false">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Meeting Pod B</h3>
-                <span class="badge badge-success">Available Now</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 4</span>
-                <span style="color: var(--text-dim);">○ Face Rec Optional</span>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
-            </div>
-        </div>
-
-        <div class="card room-card" data-name="creative studio" data-status="available" data-facerec="true">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Creative Studio</h3>
-                <span class="badge badge-success">Available Now</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 10</span>
-                <span style="color: var(--success);">● Face Rec Required</span>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
-            </div>
-        </div>
+        {% endfor %}
 
     </div>
 
     <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
-        <div style="font-size: 3.5rem; margin-bottom: 15px;">🏠</div>
-        <p>No rooms match your search.</p>
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">🔍</div>
+        <p>No rooms match your search or filter.</p>
     </div>
 
 </div>
@@ -115,7 +89,7 @@
         let visible = 0;
 
         cards.forEach(card => {
-            const name = card.getAttribute('data-name');
+            const name = card.getAttribute('data-name') || '';
             const status = card.getAttribute('data-status');
             const facerec = card.getAttribute('data-facerec');
 
@@ -136,5 +110,12 @@
 
         document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
     }
+
+    // Optional: clear search when filter changes (nice UX)
+    document.getElementById('room-filter').addEventListener('change', function() {
+        if (this.value === 'all') {
+            document.getElementById('room-search').value = '';
+        }
+    });
 </script>
 {% endblock %}
