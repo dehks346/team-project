@@ -29,75 +29,38 @@
     </div>
 
     <div id="rooms-grid" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-
-        <div class="card room-card" data-name="conference room a" data-status="available" data-facerec="true">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Conference Room A</h3>
-                <span class="badge badge-success">Available Now</span>
+        {% for room in rooms %}
+        <div class="card room-card" data-name="{{ room.name|lower }} {{ room.location|lower }}" data-status="{% if room.is_available %}available{% else %}occupied{% endif %}" data-facerec="{{ room.is_face_required|yesno:'true,false' }}">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px; gap: 12px;">
+                <h3 style="margin: 0;">{{ room.name }}</h3>
+                <span class="badge {% if room.availability_status == 'Available' %}badge-success{% elif room.availability_status == 'Nearly Full' %}badge-primary{% else %}badge-danger{% endif %}">
+                    {{ room.availability_status }}
+                </span>
             </div>
-            
+
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-dim); font-size: 0.95rem; flex-wrap: wrap;">
+                <span>👥 {{ room.capacity }}</span>
+                <span>📍 {{ room.location }}</span>
+            </div>
+
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 12</span>
+                {% if room.is_face_required %}
                 <span style="color: var(--success);">● Face Rec Required</span>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
-            </div>
-        </div>
-
-        <div class="card room-card" data-name="lab 3" data-status="occupied" data-facerec="true">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Lab 3</h3>
-                <span class="badge badge-danger">Occupied</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 8</span>
-                <span style="color: var(--success);">● Face Rec Required</span>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
-            </div>
-        </div>
-
-        <div class="card room-card" data-name="meeting pod b" data-status="available" data-facerec="false">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Meeting Pod B</h3>
-                <span class="badge badge-success">Available Now</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 4</span>
+                {% else %}
                 <span style="color: var(--text-dim);">○ Face Rec Optional</span>
+                {% endif %}
             </div>
 
             <div style="display: flex; gap: 10px;">
                 <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
+                <a href="{% url 'booking_face_gate' room.room_id %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
             </div>
         </div>
-
-        <div class="card room-card" data-name="creative studio" data-status="available" data-facerec="true">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0;">Creative Studio</h3>
-                <span class="badge badge-success">Available Now</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--text-dim); font-size: 0.95rem;">
-                <span>👥 10</span>
-                <span style="color: var(--success);">● Face Rec Required</span>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
-                <a href="{% url 'booking_creation' %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
-            </div>
+        {% empty %}
+        <div class="card" style="grid-column: 1 / -1; text-align: center; color: var(--text-dim); padding: 40px;">
+            No rooms have been created yet.
         </div>
-
+        {% endfor %}
     </div>
 
     <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">

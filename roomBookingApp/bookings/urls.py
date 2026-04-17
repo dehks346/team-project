@@ -9,7 +9,7 @@ from .views import (
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
     PrivacyBiometricConsentView, ToggleDebugView, video_stream, get_face_status, toggle_face_detection,
     enrollment_stream, capture_face_image, verification_stream, start_face_verification,
-    set_confidence_threshold, complete_face_login
+    set_confidence_threshold, complete_face_login, BookingFaceGateView, BookingInvitationRespondView
 )
 
 urlpatterns = [
@@ -35,9 +35,11 @@ urlpatterns = [
     path('rooms/log/', RoomLogView.as_view(), name='room_log'),
 
     path('bookings/create/', BookingCreationView.as_view(), name='booking_creation'),
+    path('bookings/start/<int:room_id>/', BookingFaceGateView.as_view(), name='booking_face_gate'),
     path('bookings/edit/', BookingEditView.as_view(), name='booking_edit'),
     path('bookings/my/', MyBookingsView.as_view(), name='my_bookings'),
     path('bookings/invitation/', BookingInvitationView.as_view(), name='booking_invitation'),
+    path('bookings/invitation/<int:invite_id>/respond/', BookingInvitationRespondView.as_view(), name='booking_invitation_respond'),
 
     path('face/enrollment/', FaceEnrollmentView.as_view(), name='face_enrollment'),
     path('face/enrollment_stream/', enrollment_stream, name='enrollment_stream'),

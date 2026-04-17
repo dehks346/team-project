@@ -12,26 +12,35 @@
 
             <div style="margin-bottom: 28px;">
                 <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Room Name</label>
-                <input type="text" id="room-name" placeholder="e.g. Conference Room B" required
+                <input type="text" id="room-name" name="name" placeholder="e.g. Conference Room B" required
                        style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;">
             </div>
 
             <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
                 <div>
                     <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Capacity (people)</label>
-                    <input type="number" id="capacity" value="8" min="1" max="50" required
+                    <input type="number" id="capacity" name="capacity" value="8" min="1" max="50" required
                            style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Floor / Location</label>
-                    <input type="text" placeholder="Floor 2 • West Wing" 
+                    <input type="text" name="location" placeholder="Floor 2 • West Wing" 
                            style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                 </div>
             </div>
 
+            <div style="margin-bottom: 28px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Room Type</label>
+                <select name="room_type" style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                    <option value="MEET" selected>Meeting Room</option>
+                    <option value="CONF">Conference Room</option>
+                    <option value="TRAIN">Training Room</option>
+                </select>
+            </div>
+
             <div style="margin-bottom: 28px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 10px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 1rem;">
-                    <input type="checkbox" id="face-required" checked style="accent-color: var(--primary); width: 20px; height: 20px;">
+                    <input type="checkbox" id="face-required" name="is_face_required" checked style="accent-color: var(--primary); width: 20px; height: 20px;">
                     <span><strong>Face Recognition Required</strong> for door access</span>
                 </label>
                 <p style="margin: 8px 0 0 32px; color: var(--text-dim); font-size: 0.9rem;">
@@ -41,7 +50,7 @@
 
             <div style="margin-bottom: 28px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-                    <input type="checkbox" id="approval-required">
+                    <input type="checkbox" id="approval-required" name="approval_required">
                     <span>Require admin approval for bookings</span>
                 </label>
             </div>
@@ -50,6 +59,7 @@
                 <label style="display: block; margin-bottom: 8px; color: var(--text-dim);">Equipment</label>
                 <div style="display: flex; flex-wrap: wrap; gap: 10px;" id="equipment-chips">
                 </div>
+                <input type="hidden" id="equipment" name="equipment" value="">
                 <div style="margin-top: 12px; display: flex; gap: 8px;">
                     <input type="text" id="equip-input" placeholder="Add equipment (e.g. 4K TV)" 
                            style="flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
@@ -62,25 +72,25 @@
                 <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div>
                         <small style="color: var(--text-dim);">Open</small>
-                        <input type="time" value="07:00" style="width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                        <input type="time" name="opening_time" value="07:00" style="width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                     </div>
                     <div>
                         <small style="color: var(--text-dim);">Close</small>
-                        <input type="time" value="22:00" style="width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                        <input type="time" name="closing_time" value="22:00" style="width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                     </div>
                 </div>
             </div>
 
             <div style="margin-bottom: 30px;">
                 <label style="display: block; margin-bottom: 8px; color: var(--text-dim);">Room Photo (optional)</label>
-                <div style="border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer;"
+                 <div style="border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer;"
                      onclick="document.getElementById('room-image').click()">
                     <div id="image-preview" style="display: none; margin-bottom: 15px;">
                         <img id="preview-img" style="max-height: 180px; border-radius: 8px;">
                     </div>
                     <p style="margin: 0; color: var(--text-dim);">Click to upload image (JPG/PNG)</p>
                 </div>
-                <input type="file" id="room-image" accept="image/*" style="display: none;" onchange="previewImage(event)">
+                <input type="file" id="room-image" name="photo" accept="image/*" style="display: none;" onchange="previewImage(event)">
             </div>
 
             <button type="submit" onclick="return createRoom()" 
@@ -103,10 +113,18 @@
         chip.style.cssText = 'background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;';
         chip.innerHTML = `
             ${value}
-            <span onclick="this.parentElement.remove()" style="cursor: pointer; font-size: 1.3rem; line-height: 1;">×</span>
+            <span onclick="this.parentElement.remove(); syncEquipment()" style="cursor: pointer; font-size: 1.3rem; line-height: 1;">×</span>
         `;
         container.appendChild(chip);
+        syncEquipment();
         input.value = '';
+    }
+
+    function syncEquipment() {
+        const values = Array.from(document.querySelectorAll('#equipment-chips > div'))
+            .map(chip => chip.firstChild.textContent.trim())
+            .filter(Boolean);
+        document.getElementById('equipment').value = values.join(',');
     }
 
     function previewImage(event) {
@@ -129,7 +147,7 @@
             alert("Please enter a room name");
             return false;
         }
-        alert(`✅ Room "${name}" created successfully!\n\nFace recognition and access rules are now active on the Raspberry Pi.`);
+        syncEquipment();
         return true;
     }
 

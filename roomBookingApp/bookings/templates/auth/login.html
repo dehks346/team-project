@@ -28,8 +28,8 @@
             {% csrf_token %}
 
             <div style="margin-bottom: 18px;">
-                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Email address</label>
-                <input type="email" name="username" required 
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Username or email</label>
+                <input type="text" name="username" value="{{ request.POST.username|default:'' }}" required 
                        style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
                        placeholder="you@company.com">
             </div>
@@ -99,7 +99,7 @@
     }
 
     window.onload = () => {
-        const emailField = document.querySelector('input[type="email"]');
+        const emailField = document.querySelector('input[name="username"]');
         if (emailField) emailField.focus();
     };
 </script>

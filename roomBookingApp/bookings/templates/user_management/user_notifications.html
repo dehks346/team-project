@@ -23,6 +23,24 @@
     </div>
 
     <div id="notifications-list" style="max-height: 620px; overflow-y: auto;">
+
+        {% if invitations %}
+            {% for invitation in invitations %}
+            <div class="notification-item" data-type="invite" data-read="{% if invitation.status == 'PENDING' %}false{% else %}true{% endif %}" 
+                 style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer; {% if invitation.status != 'PENDING' %}opacity: 0.75;{% endif %}">
+                <div style="font-size: 1.6rem; width: 40px;">📨</div>
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; gap: 12px;">
+                        <strong>{{ invitation.booking.room.name }}</strong>
+                        <span class="badge {% if invitation.status == 'ACCEPTED' %}badge-success{% elif invitation.status == 'DECLINED' %}badge-danger{% else %}badge-primary{% endif %}" style="font-size: 0.75rem;">{{ invitation.get_status_display }}</span>
+                    </div>
+                    <p style="margin: 4px 0 0; color: var(--text-dim);">
+                        Invitation for {{ invitation.booking.booking_datetime|date:"M d, Y H:i" }}.
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
         
         <div class="notification-item" data-type="booking" data-read="false" 
              onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer;">

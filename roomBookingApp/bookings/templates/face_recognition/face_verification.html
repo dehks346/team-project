@@ -251,7 +251,7 @@
             resultName.textContent = name;
             resultConfidence.textContent = `${confidence}% match score`;
             resultConfidence.style.color = 'var(--success)';
-            continueBtn.textContent = 'Continue to Dashboard';
+            continueBtn.textContent = 'Continue';
             verifiedRedirectUrl = redirectUrl || '{% url "home" %}';
             setTimeout(() => {
                 if (verifiedRedirectUrl) {
