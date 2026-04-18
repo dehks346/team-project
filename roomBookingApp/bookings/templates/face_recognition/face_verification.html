@@ -1,8 +1,352 @@
 {% extends 'base.html' %}
 {% block title %}Face Verification{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Verify Face</h2>
-    <button class="btn btn-primary">Verify</button>
+<div style="max-width: 720px; margin: 40px auto;">
+
+    <div class="card">
+        <h2 style="margin-bottom: 25px; text-align: center;">Face Verification</h2>
+
+        <div style="background: #000; border-radius: 16px; overflow: hidden; position: relative; border: 3px solid var(--border); margin-bottom: 20px;">
+            <img id="verification-feed" src="{% url 'verification_stream' %}" 
+                 style="width: 100%; height: auto; display: block; min-height: 360px;">
+            
+            <div id="scanning-ring" style="position: absolute; top: 50%; left: 50%; width: 260px; height: 260px; border: 4px solid transparent; border-top-color: var(--primary); border-radius: 50%; animation: spin 1.2s linear infinite; display: none; transform: translate(-50%, -50%);"></div>
+        </div>
+
+        <div id="status-area" style="text-align: center; margin-bottom: 25px; min-height: 68px;">
+            <p id="status-text" style="margin: 0; font-size: 1.15rem; color: var(--text-dim);">
+                Position your face in the frame
+            </p>
+            <small id="status-sub" style="color: var(--text-dim);">Camera ready • Face recognition active</small>
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong>Recognition Sensitivity</strong>
+                <span id="threshold-display" class="badge badge-success">75</span>
+            </div>
+            <input type="range" id="threshold-slider" min="40" max="120" step="1" value="75"
+                   style="width: 100%;"
+                   oninput="updateThresholdLabel(this.value)"
+                   onchange="saveThreshold(this.value)">
+            <small id="threshold-hint" style="color: var(--text-dim);">Balanced • Higher value = more lenient recognition</small>
+        </div>
+
+        <button onclick="startVerification()" id="verify-btn"
+                class="btn btn-primary" style="width: 100%; padding: 18px; font-size: 1.15rem;">
+            🔍 Start Face Verification
+        </button>
+
+        <button onclick="cancelVerification()" 
+                class="btn btn-outline" style="width: 100%; margin-top: 12px;">
+            Cancel
+        </button>
+    </div>
+
+    <div id="result-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center;">
+        <div class="card" style="width: 420px; text-align: center;">
+            <div id="result-icon" style="font-size: 5rem; margin-bottom: 15px;">✅</div>
+            <h2 id="result-title" style="margin: 0 0 8px 0; color: var(--success);">Access Granted</h2>
+            <p id="result-name" style="font-size: 1.3rem; margin: 8px 0;">Alex Chen</p>
+            <p id="result-confidence" style="color: var(--success); font-weight: 600;">98% match</p>
+            
+            <div style="margin: 25px 0;">
+                <button id="result-continue-btn" onclick="proceedToAccessResult()" class="btn btn-primary" style="width: 100%;">
+                    Continue to Room
+                </button>
+            </div>
+            
+            <button onclick="hideResultOverlay()" class="btn btn-outline" style="width: 100%;">
+                Try Again
+            </button>
+        </div>
+    </div>
+
 </div>
+
+<script>
+    let verificationRunning = false;
+    let verificationCheckInterval = null;
+    let verifiedRedirectUrl = null;
+
+    function updateThresholdLabel(value) {
+        const threshold = Number(value);
+        const display = document.getElementById('threshold-display');
+        const hint = document.getElementById('threshold-hint');
+
+        display.textContent = String(threshold);
+
+        let mode = 'Balanced';
+        if (threshold <= 60) {
+            mode = 'Strict';
+            display.className = 'badge badge-danger';
+        } else if (threshold >= 95) {
+            mode = 'Lenient';
+            display.className = 'badge badge-success';
+        } else {
+            display.className = 'badge badge-primary';
+        }
+
+        hint.textContent = `${mode} • Higher value = more lenient recognition`;
+    }
+
+    function saveThreshold(value) {
+        fetch('{% url "set_confidence_threshold" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({ threshold: Number(value) })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Failed to update sensitivity');
+            }
+
+            document.getElementById('threshold-slider').value = data.threshold;
+            updateThresholdLabel(data.threshold);
+            if (!verificationRunning) {
+                document.getElementById('status-sub').textContent = `Sensitivity set to ${data.threshold}`;
+            }
+        })
+        .catch(error => {
+            alert(`❌ ${error.message}`);
+        });
+    }
+
+    function loadThresholdSettings() {
+        fetch('{% url "face_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const slider = document.getElementById('threshold-slider');
+                slider.min = data.threshold_min;
+                slider.max = data.threshold_max;
+                slider.value = data.threshold;
+                updateThresholdLabel(data.threshold);
+            })
+            .catch(err => console.error('Threshold load error:', err));
+    }
+
+    function startVerification() {
+        if (verificationRunning) {
+            return;
+        }
+
+        verificationRunning = true;
+        const btn = document.getElementById('verify-btn');
+        const ring = document.getElementById('scanning-ring');
+        const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
+        
+        btn.textContent = "Scanning...";
+        btn.disabled = true;
+        ring.style.display = "block";
+        statusText.textContent = "Preparing verification...";
+        statusSub.textContent = "Loading enrolled user profiles";
+
+        if (verificationCheckInterval) {
+            clearInterval(verificationCheckInterval);
+            verificationCheckInterval = null;
+        }
+
+        fetch('{% url "start_face_verification" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            }
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Unable to start verification');
+            }
+
+            statusText.textContent = "Analyzing face...";
+            statusSub.textContent = data.message || "Camera ready • Face recognition active";
+            verificationCheckInterval = setInterval(checkVerificationStatus, 500);
+        })
+        .catch(error => {
+            alert(`❌ ${error.message}`);
+            resetVerification();
+        });
+    }
+
+    function checkVerificationStatus() {
+        if (!verificationRunning) {
+            return;
+        }
+
+        fetch('{% url "face_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const statusText = document.getElementById('status-text');
+                const statusSub = document.getElementById('status-sub');
+                const matchScore = Math.round(data.match_score || 0);
+                
+                if (data.current_face && data.current_face !== 'None') {
+                    statusText.textContent = `Detected: ${data.current_face}`;
+                    statusSub.textContent = `Match score: ${matchScore}% • Threshold: ${data.threshold}`;
+                    
+                    // If confirmed, show result
+                    if (data.frames_confirmed && verificationRunning) {
+                        clearInterval(verificationCheckInterval);
+                        if (data.current_face !== 'Unknown') {
+                            completeFaceLogin(data.current_face, matchScore);
+                        } else {
+                            showResult(data.current_face, matchScore, false);
+                        }
+                    }
+                } else {
+                    statusText.textContent = "Position your face in the frame";
+                    statusSub.textContent = `Looking for face... • Threshold: ${data.threshold}`;
+                }
+            })
+            .catch(err => console.error('Verification check error:', err));
+    }
+
+    function completeFaceLogin(name, confidence) {
+        const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
+        statusText.textContent = 'Face verified';
+        statusSub.textContent = 'Creating secure login session...';
+
+        fetch('{% url "complete_face_login" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            }
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'Unable to complete face login');
+            }
+
+            showResult(data.user || name, confidence, true, data.redirect_url || '{% url "home" %}');
+        })
+        .catch(error => {
+            showResult('Unknown', confidence, false);
+            alert(`❌ ${error.message}`);
+        });
+    }
+
+    function showResult(name, confidence, granted = (name !== 'Unknown'), redirectUrl = null) {
+        verificationRunning = false;
+        
+        const resultOverlay = document.getElementById('result-overlay');
+        const resultIcon = document.getElementById('result-icon');
+        const resultTitle = document.getElementById('result-title');
+        const resultName = document.getElementById('result-name');
+        const resultConfidence = document.getElementById('result-confidence');
+        const continueBtn = document.getElementById('result-continue-btn');
+        
+        if (granted) {
+            resultIcon.textContent = '✅';
+            resultIcon.style.color = 'var(--success)';
+            resultTitle.textContent = 'Access Granted';
+            resultTitle.style.color = 'var(--success)';
+            resultName.textContent = name;
+            resultConfidence.textContent = `${confidence}% match score`;
+            resultConfidence.style.color = 'var(--success)';
+            continueBtn.textContent = 'Continue to Dashboard';
+            verifiedRedirectUrl = redirectUrl || '{% url "home" %}';
+            setTimeout(() => {
+                if (verifiedRedirectUrl) {
+                    window.location.href = verifiedRedirectUrl;
+                }
+            }, 1200);
+        } else {
+            resultIcon.textContent = '❌';
+            resultIcon.style.color = 'var(--danger)';
+            resultTitle.textContent = 'Access Denied';
+            resultTitle.style.color = 'var(--danger)';
+            resultName.textContent = 'Unknown User';
+            resultConfidence.textContent = `${confidence}% match score`;
+            resultConfidence.style.color = 'var(--danger)';
+            continueBtn.textContent = 'Try Again';
+            verifiedRedirectUrl = null;
+        }
+        
+        resultOverlay.style.display = 'flex';
+    }
+
+    function hideResultOverlay() {
+        document.getElementById('result-overlay').style.display = 'none';
+        verifiedRedirectUrl = null;
+        resetVerification();
+    }
+
+    function proceedToAccessResult() {
+        if (verifiedRedirectUrl) {
+            window.location.href = verifiedRedirectUrl;
+            return;
+        }
+
+        hideResultOverlay();
+    }
+
+    function cancelVerification() {
+        if (confirm("Cancel face verification?")) {
+            if (verificationCheckInterval) {
+                clearInterval(verificationCheckInterval);
+            }
+            resetVerification();
+        }
+    }
+
+    function resetVerification() {
+        verificationRunning = false;
+        if (verificationCheckInterval) {
+            clearInterval(verificationCheckInterval);
+            verificationCheckInterval = null;
+        }
+        
+        const btn = document.getElementById('verify-btn');
+        const ring = document.getElementById('scanning-ring');
+        const statusText = document.getElementById('status-text');
+        const statusSub = document.getElementById('status-sub');
+
+        btn.textContent = "🔍 Start Face Verification";
+        btn.disabled = false;
+        ring.style.display = "none";
+        statusText.textContent = "Position your face in the frame";
+        statusSub.textContent = "Camera ready • Face recognition active";
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === "Enter" && !verificationRunning) {
+            startVerification();
+        }
+    });
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Initialize
+    window.onload = () => {
+        loadThresholdSettings();
+        console.log('📹 Raspberry Pi verification stream active');
+    };
+</script>
+
+<style>
+    @keyframes spin {
+        to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+</style>
 {% endblock %}

@@ -1,12 +1,193 @@
 {% extends 'base.html' %}
 {% block title %}Room Permissions{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>Permissions</h2>
-    <table>
-        <thead><tr><th>User</th><th>Role</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
+<div class="card" style="max-width: 960px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h2 style="margin: 0;">Room Permissions</h2>
+            <p style="margin: 6px 0 0; color: var(--text-dim);">Conference Room A • Face recognition required</p>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+            <input type="text" id="user-search" placeholder="Search users..." 
+                   onkeyup="filterPermissions()" 
+                   style="padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 240px;">
+            
+            <button onclick="showAddModal()" class="btn btn-primary">
+                + Add User / Group
+            </button>
+        </div>
+    </div>
+
+    <table id="permissions-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>User / Group</th>
+                <th>Role</th>
+                <th>Face Required</th>
+                <th>Added</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="permissions-body">
+            
+            <tr>
+                <td>
+                    <strong>Alex Chen</strong><br>
+                    <small style="color: var(--text-dim);">Owner</small>
+                </td>
+                <td><span class="badge badge-success">Full Access</span></td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><small>Feb 26</small></td>
+                <td>
+                    <button onclick="removeUser(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Remove</button>
+                </td>
+            </tr>
+
+            <tr>
+                <td>
+                    <strong>Sarah Lee</strong><br>
+                    <small style="color: var(--text-dim);">Team Lead</small>
+                </td>
+                <td><span class="badge" style="background: rgba(245,158,11,0.2); color: #f59e0b;">Book Only</span></td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><small>Mar 1</small></td>
+                <td>
+                    <button onclick="removeUser(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Remove</button>
+                </td>
+            </tr>
+
+            <tr>
+                <td>
+                    <strong>Marketing Team</strong><br>
+                    <small style="color: var(--text-dim);">Group</small>
+                </td>
+                <td><span class="badge" style="background: rgba(245,158,11,0.2); color: #f59e0b;">Book Only</span></td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><small>Feb 28</small></td>
+                <td>
+                    <button onclick="removeUser(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Remove</button>
+                </td>
+            </tr>
+
+        </tbody>
     </table>
-    <button class="btn btn-primary">Add User</button>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">👥</div>
+        <p>No users have access yet.</p>
+    </div>
+
+    <div style="margin-top: 20px; text-align: right; color: var(--text-dim); font-size: 0.85rem;">
+        Face recognition is enforced for all users with access
+    </div>
+
 </div>
+
+<div id="add-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 420px; margin: 20px;">
+        <h3 style="margin-top: 0;">Add User / Group to Room</h3>
+        
+        <div style="margin-bottom: 18px;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">User or Group</label>
+            <select id="modal-user" style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="">— Select —</option>
+                <option>Sarah Lee</option>
+                <option>Mike Wilson</option>
+                <option>Design Team</option>
+                <option>Engineering Group</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Role</label>
+            <select id="modal-role" style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="full">Full Access (Book + Enter)</option>
+                <option value="book">Book Only</option>
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <button onclick="hideModal()" class="btn btn-outline" style="flex: 1;">Cancel</button>
+            <button onclick="addUserFromModal()" class="btn btn-primary" style="flex: 1;">Add to Room</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterPermissions() {
+        const searchTerm = document.getElementById('user-search').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#permissions-body tr');
+        let visible = 0;
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                row.style.display = 'table-row';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    function removeUser(btn) {
+        if (confirm("Remove this user from the room?\nThey will lose access immediately.")) {
+            const row = btn.closest('tr');
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => {
+                row.remove();
+                if (document.querySelectorAll('#permissions-body tr').length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                }
+            }, 300);
+        }
+    }
+
+    function showAddModal() {
+        document.getElementById('add-modal').style.display = 'flex';
+    }
+
+    function hideModal() {
+        document.getElementById('add-modal').style.display = 'none';
+    }
+
+    function addUserFromModal() {
+        const userSelect = document.getElementById('modal-user');
+        const roleSelect = document.getElementById('modal-role');
+        
+        if (!userSelect.value) {
+            alert("Please select a user or group");
+            return;
+        }
+
+        hideModal();
+        
+        const tbody = document.getElementById('permissions-body');
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td>
+                <strong>${userSelect.value}</strong><br>
+                <small style="color: var(--text-dim);">Newly added</small>
+            </td>
+            <td><span class="badge ${roleSelect.value === 'full' ? 'badge-success' : ''}">${roleSelect.options[roleSelect.selectedIndex].text}</span></td>
+            <td><span class="badge badge-success">Yes</span></td>
+            <td><small>Just now</small></td>
+            <td>
+                <button onclick="removeUser(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Remove</button>
+            </td>
+        `;
+        tbody.appendChild(newRow);
+        
+        alert(`✅ ${userSelect.value} added with ${roleSelect.options[roleSelect.selectedIndex].text} access`);
+    }
+
+    window.onload = () => {
+        filterPermissions();
+    };
+</script>
 {% endblock %}

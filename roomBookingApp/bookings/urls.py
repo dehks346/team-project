@@ -1,4 +1,5 @@
 from django.urls import path
+from django.contrib.auth.views import PasswordResetDoneView, PasswordResetCompleteView
 from .views import (
     CustomLoginView, CustomRegisterView, CustomPasswordResetView, CustomPasswordResetConfirmView,
     CustomPasswordChangeView, custom_logout, HomeView, UserProfileView, UserEditView,
@@ -7,11 +8,19 @@ from .views import (
     MyBookingsView, BookingInvitationView, FaceEnrollmentView, FaceVerificationView,
     AccessResultView, LiveFeedView, SystemStatusView, AdminGlobalAuditLogView,
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
-    PrivacyBiometricConsentView, ToggleDebugView, video_stream
+    PrivacyBiometricConsentView, ToggleDebugView, video_stream, get_face_status, toggle_face_detection,
+    enrollment_stream, capture_face_image, verification_stream, start_face_verification,
+    set_confidence_threshold, complete_face_login, cancel_booking
 )
 
 urlpatterns = [
     path('login/', CustomLoginView.as_view(), name='login'),
+    path('password_reset/done/', PasswordResetDoneView.as_view(
+    template_name='auth/password_reset_done.html'
+    ), name='password_reset_done'),
+    path('reset/done/', PasswordResetCompleteView.as_view(
+    template_name='auth/password_reset_complete.html'
+    ), name='password_reset_complete'),
     path('register/', CustomRegisterView.as_view(), name='register'),
     path('password_reset/', CustomPasswordResetView.as_view(), name='password_reset'),
     path('password_reset_confirm/<uidb64>/<token>/', CustomPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
@@ -33,16 +42,25 @@ urlpatterns = [
     path('rooms/log/', RoomLogView.as_view(), name='room_log'),
 
     path('bookings/create/', BookingCreationView.as_view(), name='booking_creation'),
-    path('bookings/edit/', BookingEditView.as_view(), name='booking_edit'),
+    path('bookings/edit/<int:pk>/', BookingEditView.as_view(), name='booking_edit'),
     path('bookings/my/', MyBookingsView.as_view(), name='my_bookings'),
     path('bookings/invitation/', BookingInvitationView.as_view(), name='booking_invitation'),
+    path('bookings/cancel/<int:booking_id>/', cancel_booking, name='cancel_booking'),
 
     path('face/enrollment/', FaceEnrollmentView.as_view(), name='face_enrollment'),
+    path('face/enrollment_stream/', enrollment_stream, name='enrollment_stream'),
+    path('face/capture_image/', capture_face_image, name='capture_face_image'),
     path('face/verification/', FaceVerificationView.as_view(), name='face_verification'),
+    path('face/start_verification/', start_face_verification, name='start_face_verification'),
+    path('face/set_confidence_threshold/', set_confidence_threshold, name='set_confidence_threshold'),
+    path('face/complete_login/', complete_face_login, name='complete_face_login'),
+    path('face/verification_stream/', verification_stream, name='verification_stream'),
     path('face/access_result/', AccessResultView.as_view(), name='access_result'),
 
     path('live/feed/', LiveFeedView.as_view(), name='live_feed'),
     path('live/video_stream/', video_stream, name='video_stream'),
+    path('live/face_status/', get_face_status, name='face_status'),
+    path('live/toggle_face_detection/', toggle_face_detection, name='toggle_face_detection'),
     path('live/status/', SystemStatusView.as_view(), name='system_status'),
 
     path('admin/audit_log/', AdminGlobalAuditLogView.as_view(), name='admin_global_audit_log'),

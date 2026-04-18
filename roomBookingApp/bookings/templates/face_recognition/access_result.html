@@ -1,9 +1,107 @@
 {% extends 'base.html' %}
 {% block title %}Access Result{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Access Result</h2>
-    <p class="badge badge-success">Granted</p>
-    <button class="btn btn-outline">Retry</button>
+<div style="max-width: 520px; margin: 80px auto 40px auto; text-align: center;">
+
+    <div id="result-card" class="card">
+
+        <div id="result-icon" style="font-size: 6.5rem; margin-bottom: 15px; transition: all 0.4s;">✅</div>
+        
+        <h1 id="result-title" style="font-size: 2.6rem; margin: 0 0 8px 0; color: var(--success);">Access Granted</h1>
+        
+        <p id="result-subtitle" style="color: var(--text-dim); font-size: 1.1rem;">
+            Welcome to <strong>Conference Room A</strong>
+        </p>
+
+        <div style="margin: 25px 0; padding: 18px; background: rgba(255,255,255,0.03); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: var(--text-dim);">Confidence Score</span>
+                <strong id="confidence" style="color: var(--success);">98%</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-dim);">Time</span>
+                <strong id="timestamp">March 9, 2026 • 14:37:22</strong>
+            </div>
+        </div>
+
+        <div id="result-message" style="margin: 20px 0; font-size: 1.05rem; color: var(--text-dim); min-height: 48px;">
+            Face recognized as Alex Chen
+        </div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button onclick="retryVerification()" 
+                    class="btn btn-outline" style="flex: 1; padding: 16px; font-size: 1.05rem;">
+                🔄 Retry Face Scan
+            </button>
+            
+            <button onclick="goToDashboard()" 
+                    class="btn btn-primary" style="flex: 1; padding: 16px; font-size: 1.05rem;">
+                ← Back to Dashboard
+            </button>
+        </div>
+
+        <a href="{% url 'live_feed' %}" style="margin-top: 25px; display: inline-block; color: var(--text-dim); font-size: 0.9rem;">
+            → Return to Live Camera Feed
+        </a>
+    </div>
+
 </div>
+
+<script>
+    let isGranted = true;
+
+    function toggleDemoResult() {
+        isGranted = !isGranted;
+        const icon = document.getElementById('result-icon');
+        const title = document.getElementById('result-title');
+        const subtitle = document.getElementById('result-subtitle');
+        const confidence = document.getElementById('confidence');
+        const message = document.getElementById('result-message');
+
+        if (isGranted) {
+            icon.textContent = '✅';
+            icon.style.color = 'var(--success)';
+            title.textContent = 'Access Granted';
+            title.style.color = 'var(--success)';
+            subtitle.textContent = 'Welcome to Conference Room A';
+            confidence.textContent = '98%';
+            confidence.style.color = 'var(--success)';
+            message.textContent = 'Face recognized as Alex Chen';
+        } else {
+            icon.textContent = '❌';
+            icon.style.color = 'var(--danger)';
+            title.textContent = 'Access Denied';
+            title.style.color = 'var(--danger)';
+            subtitle.textContent = 'Conference Room A';
+            confidence.textContent = '42%';
+            confidence.style.color = 'var(--danger)';
+            message.textContent = 'Confidence too low • Unknown face';
+        }
+    }
+
+    function retryVerification() {
+        alert("🔄 Starting new face scan on Raspberry Pi camera...\n\n(Real verification would happen here)");
+        window.location.href = "{% url 'face_verification' %}";
+    }
+
+    function goToDashboard() {
+        window.location.href = "{% url 'home' %}";
+    }
+
+    setInterval(toggleDemoResult, 4000);
+
+    window.onload = () => {
+        const now = new Date();
+        const timeStr = now.toLocaleString('en-US', { 
+            month: 'long', 
+            day: 'numeric', 
+            year: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('timestamp').textContent = timeStr;
+    };
+</script>
 {% endblock %}

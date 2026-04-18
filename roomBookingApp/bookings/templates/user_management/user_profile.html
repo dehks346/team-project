@@ -1,15 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}User Profile{% endblock %}
+{% block title %}Profile{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>User Profile</h2>
-    <p>Name: {{ user_obj.first_name }} {{ user_obj.last_name }}</p>
-    <p>Email: {{ user_obj.email }}</p>
-    <a href="{% url 'user_edit' %}" class="btn btn-outline">Edit Profile</a>
-    <!-- Active bookings, past, rooms, face status, etc. -->
-    <table>
-        <thead><tr><th>Active Bookings</th></tr></thead>
-        <tbody><!-- Rows --></tbody>
-    </table>
+<div class="card" style="max-width: 700px; margin: 40px auto;">
+    <h2>Your Profile</h2>
+    <p><strong>Name:</strong> {{ user.get_full_name|default:user.username }}</p>
+    <p><strong>Email:</strong> {{ user.email }}</p>
+    <p><strong>Organisation:</strong> {{ profile.organisation.name|default:"None" }}</p>
+    <p><strong>Total Bookings:</strong> {{ bookings_count }}</p>
+
+    <a href="{% url 'user_edit' %}" class="btn btn-primary" style="margin-top: 20px;">Edit Profile</a>
 </div>
 {% endblock %}

@@ -1,17 +1,132 @@
 {% extends 'base.html' %}
 {% block title %}Register{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Register</h2>
-    <form method="post">
-        {% csrf_token %}
-        <label>Name</label><input type="text" name="name">
-        <label>Email</label><input type="email" name="email">
-        <label>Password</label><input type="password" name="password1">
-        <label>Confirm Password</label><input type="password" name="password2">
-        <label>Role</label><select name="role"><option>User</option><option>Admin</option></select>
-        <label><input type="checkbox" name="terms"> Accept terms</label>
-        <button class="btn btn-primary">Register</button>
-    </form>
+<div style="max-width: 420px; margin: 60px auto 40px auto;">
+
+    <!-- Logo / Brand -->
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 2.8rem; font-weight: 700; color: var(--primary); letter-spacing: -2px;">
+            RoomGuard
+        </div>
+        <p style="color: var(--text-dim); margin: 4px 0 0; font-size: 1.05rem;">
+            Smart Room Booking + Face Access
+        </p>
+    </div>
+
+    <div class="card">
+        <h2 style="text-align: center; margin-bottom: 25px;">Create your account</h2>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="card" style="background: var(--danger); color: white; padding: 12px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Full name</label>
+                <input type="text" name="name" required 
+                       style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
+                       placeholder="Alex Chen">
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Email address</label>
+                <input type="email" name="email" required 
+                       style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
+                       placeholder="you@company.com">
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Password</label>
+                <input type="password" name="password1" id="password1" required 
+                       style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
+                       placeholder="••••••••">
+                <small onclick="togglePassword(1)" style="cursor: pointer; color: var(--primary); float: right; margin-top: 4px; font-size: 0.85rem;">
+                    👁 Show password
+                </small>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Confirm password</label>
+                <input type="password" name="password2" id="password2" required 
+                       style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
+                       placeholder="••••••••">
+                <small onclick="togglePassword(2)" style="cursor: pointer; color: var(--primary); float: right; margin-top: 4px; font-size: 0.85rem;">
+                    👁 Show password
+                </small>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Role</label>
+                <select name="role" required
+                        style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;">
+                    <option value="user">User (Book rooms &amp; use face access)</option>
+                    <option value="admin">Admin (Manage users &amp; rooms)</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem;">
+                    <input type="checkbox" name="terms" required style="accent-color: var(--primary); width: 18px; height: 18px;">
+                    <span>I accept the <a href="{% url 'privacy_biometric_consent' %}" target="_blank" style="color: var(--primary);">Privacy &amp; Biometric Consent Policy</a></span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" 
+                    style="width: 90%; padding: 14px; font-size: 1.05rem;">
+                Create account
+            </button>
+        </form>
+
+        <!-- Face enrollment teaser (project-specific) -->
+        <div style="margin: 28px 0; text-align: center; position: relative;">
+            <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border);"></div>
+            <span style="background: var(--card); padding: 0 16px; color: var(--text-dim); font-size: 0.85rem;">or</span>
+        </div>
+
+        <div style="text-align: center; background: rgba(56, 189, 248, 0.08); padding: 16px; border-radius: 8px; font-size: 0.9rem;">
+            After registration you can instantly <strong>enroll your face</strong> for door access.
+        </div>
+
+        <!-- Login link -->
+        <p style="text-align: center; margin-top: 28px; color: var(--text-dim); font-size: 0.9rem;">
+            Already have an account? 
+            <a href="{% url 'login' %}" style="color: var(--primary); text-decoration: none;">Sign in →</a>
+        </p>
+    </div>
+
+    <!-- Footer note -->
+    <p style="text-align: center; margin-top: 30px; color: var(--text-dim); font-size: 0.8rem;">
+        Secured by Raspberry Pi + Face Recognition
+    </p>
+
 </div>
+
+<script>
+    function togglePassword(n) {
+        const field = document.getElementById('password' + n);
+        const texts = document.querySelectorAll('small[onclick^="togglePassword"]');
+        const text = texts[n-1];
+        
+        if (field.type === "password") {
+            field.type = "text";
+            text.textContent = "🙈 Hide password";
+        } else {
+            field.type = "password";
+            text.textContent = "👁 Show password";
+        }
+    }
+
+    // Auto-focus first field
+    window.onload = () => {
+        const firstField = document.querySelector('input[type="text"]');
+        if (firstField) firstField.focus();
+    };
+</script>
 {% endblock %}

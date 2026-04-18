@@ -1,13 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Room Log{% endblock %}
+{% block title %}Room Audit Log{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Audit Log</h2>
+<div class="card" style="max-width: 1100px; margin: 0 auto;">
+    <h2 style="margin-bottom: 25px;">Audit Log</h2>
+
     <table>
-        <thead><tr><th>Event</th><th>Date</th></tr></thead>
-        <tbody></tbody>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Room</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+            <tr>
+                <td>{{ record.timestamp|date:"M d, Y H:i" }}</td>
+                <td>{{ record.get_action_display }}</td>
+                <td>{{ record.room.location|default:"-" }}</td>
+                <td>{{ record.description|default:record.summary }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="text-align:center; padding:60px; color:var(--text-dim);">No activity yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-    <button class="btn btn-outline">Export CSV</button>
 </div>
 {% endblock %}
-HTML

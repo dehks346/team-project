@@ -22,12 +22,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-@u7pnt&ace2v046%t+w-wfwsyurgjwnyj_%5d4*0@hylsr$77d'
 
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
 
 LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 LOGIN_REDIRECT_URL = '/'  # Redirect to home after login (or wherever you prefer)
 LOGOUT_REDIRECT_URL = '/login/'  # Redirect back to login after logout
@@ -60,7 +64,7 @@ ROOT_URLCONF = 'roomBookingApp.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

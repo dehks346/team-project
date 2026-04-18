@@ -1,13 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}Notifications{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Notifications</h2>
-    <table>
-        <thead><tr><th>Notification</th><th>Status</th></tr></thead>
-        <tbody><!-- Rows with read/unread --></tbody>
-    </table>
-    <button class="btn btn-outline">Mark All Read</button>
-    <button class="btn btn-outline">Clear</button>
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+    <h2 style="margin-bottom: 25px;">Notifications</h2>
+
+    {% for notification in notifications %}
+    <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 12px;">
+        <p>{{ notification.message }}</p>
+        <small style="color: var(--text-dim);">{{ notification.created_at|timesince }} ago</small>
+    </div>
+    {% empty %}
+    <p style="color: var(--text-dim); text-align: center; padding: 60px;">No notifications yet.</p>
+    {% endfor %}
 </div>
 {% endblock %}

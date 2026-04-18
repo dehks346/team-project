@@ -1,11 +1,179 @@
 {% extends 'base.html' %}
+{% csrf_token %}
+
 {% block title %}My Bookings{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>My Bookings</h2>
-    <table>
-        <thead><tr><th>Room</th><th>Date</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
+
+<div class="card" style="max-width: 1100px; margin: 0 auto;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="margin: 0;">My Bookings</h2>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="{% url 'booking_creation' %}" class="btn btn-primary">+ New Booking</a>
+            <a href="#" onclick="toggleCalendarView()" class="btn btn-outline">📅 Calendar View</a>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 25px;">
+        <button onclick="switchTab(0)" id="tab-0" 
+                class="tab-button active"
+                style="background: none; border: none; padding: 10px 0; font-weight: 600; border-bottom: 3px solid var(--primary); color: var(--text);">
+            Upcoming ({{ upcoming_bookings|length }})
+        </button>
+        <button onclick="switchTab(1)" id="tab-1" 
+                class="tab-button"
+                style="background: none; border: none; padding: 10px 0; font-weight: 600; color: var(--text-dim);">
+            Past ({{ past_bookings|length }})
+        </button>
+    </div>
+
+    <table id="bookings-table">
+        <thead>
+            <tr>
+                <th>Room</th>
+                <th>Date &amp; Time</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <!-- Upcoming -->
+        <tbody id="upcoming-body">
+            {% for booking in upcoming_bookings %}
+            <tr data-status="upcoming">
+                <td><strong>{{ booking.room.location }}</strong></td>
+                <td>
+                    {{ booking.booking_datetime|date:"M d, Y" }} • 
+                    {{ booking.booking_datetime|time:"H:i" }}
+                </td>
+                <td>—</td>
+                <td>
+                    <span class="badge badge-success">{{ booking.get_status_display }}</span>
+                </td>
+                <td>
+                    <a href="{% url 'booking_edit' booking.booking_id %}" 
+                       class="btn btn-outline" 
+                       style="padding: 6px 12px; font-size: 0.85rem; margin-right: 6px;">
+                        Edit
+                    </a>
+                    {% if booking.can_cancel %}
+                    <button onclick="cancelBooking({{ booking.booking_id }})" 
+                            class="btn btn-danger" 
+                            style="padding: 6px 12px; font-size: 0.85rem;">
+                        Cancel
+                    </button>
+                    {% else %}
+                    <span style="color: var(--text-dim);">Cannot cancel</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align:center; padding:60px 20px; color:var(--text-dim);">
+                    No upcoming bookings yet.<br>
+                    <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="margin-top:15px;">
+                        Create your first booking
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+
+        <!-- Past -->
+        <tbody id="past-body" style="display:none;">
+            {% for booking in past_bookings %}
+            <tr data-status="past">
+                <td><strong>{{ booking.room.location }}</strong></td>
+                <td>
+                    {{ booking.booking_datetime|date:"M d, Y" }} • 
+                    {{ booking.booking_datetime|time:"H:i" }}
+                </td>
+                <td>—</td>
+                <td>
+                    <span class="badge" style="background:rgba(148,163,184,0.2); color:var(--text-dim);">
+                        {{ booking.get_status_display }}
+                    </span>
+                </td>
+                <td>
+                    <a href="{% url 'room_overview' %}?room_id={{ booking.room.room_id }}" 
+                       class="btn btn-outline" 
+                       style="padding:6px 12px; font-size:0.85rem;">
+                        View Room
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align:center; padding:40px; color:var(--text-dim);">
+                    No past bookings yet.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
+
 </div>
+
+<script>
+    function switchTab(tabIndex) {
+        document.querySelectorAll('.tab-button').forEach((btn, i) => {
+            btn.classList.toggle('active', i === tabIndex);
+        });
+
+        const upcomingBody = document.getElementById('upcoming-body');
+        const pastBody = document.getElementById('past-body');
+
+        if (tabIndex === 0) {
+            upcomingBody.style.display = 'table-row-group';
+            pastBody.style.display = 'none';
+        } else {
+            upcomingBody.style.display = 'none';
+            pastBody.style.display = 'table-row-group';
+        }
+    }
+
+    function cancelBooking(bookingId) {
+        if (!confirm("Cancel this booking?\nThis action cannot be undone.")) return;
+
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        fetch(`/bookings/cancel/${bookingId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || 'Booking cancelled successfully!');
+                location.reload();
+            } else {
+                alert(data.error || 'Failed to cancel booking.');
+            }
+        })
+        .catch(error => {
+            console.error('Cancel error:', error);
+            alert('Error cancelling booking. Check console for details.');
+        });
+    }
+
+    function toggleCalendarView() {
+        alert("📅 Calendar view coming soon.");
+    }
+
+    // Auto switch to Past tab if no upcoming bookings
+    window.onload = () => {
+        const upcomingCount = {{ upcoming_bookings|length }};
+        if (upcomingCount === 0) {
+            switchTab(1);
+        }
+    };
+</script>
+
 {% endblock %}
