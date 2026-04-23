@@ -5,12 +5,10 @@
     "fields": {
       "name": "Tech Corp",
       "email_address": "admin@techcorp.com",
-      "password": "pbkdf2_sha256$600000$defaultpasswordhash",
       "unique_access_code": "TECH2026",
       "phone_number": "555-1000",
       "address": "123 Tech Boulevard, Silicon Valley, CA",
       "fee": "999.99",
-      "number_of_users": 25,
       "number_of_rooms": 10,
       "created_at": "2026-02-19T00:00:00Z",
       "updated_at": "2026-02-19T00:00:00Z"
@@ -22,12 +20,10 @@
     "fields": {
       "name": "Design Studio",
       "email_address": "info@designstudio.com",
-      "password": "pbkdf2_sha256$600000$defaultpasswordhash",
       "unique_access_code": "DESIGN24",
       "phone_number": "555-2000",
       "address": "456 Creative Avenue, Arts District, NY",
       "fee": "499.99",
-      "number_of_users": 12,
       "number_of_rooms": 5,
       "created_at": "2026-02-19T00:00:00Z",
       "updated_at": "2026-02-19T00:00:00Z"
