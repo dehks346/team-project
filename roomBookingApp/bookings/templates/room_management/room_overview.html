@@ -2,26 +2,16 @@
 {% block title %}Room Overview{% endblock %}
 
 {% block content %}
-{% if not room %}
-<div class="card" style="text-align: center; padding: 80px 20px;">
-    <h2>No room selected</h2>
-    <p>Please go back to <a href="{% url 'room_list' %}">Room List</a> and click View Details on a room.</p>
-</div>
-{% else %}
-
 <div class="card" style="max-width: 1200px; margin: 0 auto;">
 
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; flex-wrap: wrap; gap: 20px;">
         <div>
             <div style="display: flex; align-items: center; gap: 12px;">
-                <h1 style="margin: 0; font-size: 2.2rem;">{{ room.location }}</h1>
-                <span class="badge {% if room.is_available %}badge-success{% else %}badge-danger{% endif %}" 
-                      style="font-size: 1rem; padding: 8px 16px;">
-                    ● {{ room.availability_status }}
-                </span>
+                <h1 style="margin: 0; font-size: 2.2rem;">Conference Room A</h1>
+                <span class="badge badge-success" style="font-size: 1rem; padding: 8px 16px;">● Available Now</span>
             </div>
             <p style="margin: 6px 0 0; color: var(--text-dim); font-size: 1.1rem;">
-                Capacity: {{ room.capacity }} people • {{ room.get_room_type_display }}
+                Floor 3 • Building West Wing
             </p>
         </div>
 
@@ -29,53 +19,44 @@
             <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="padding: 14px 24px;">
                 📅 Create Booking
             </a>
-            <a href="{% url 'room_permissions' %}" class="btn btn-outline" style="padding: 14px 24px;">
-                👥 Manage Access
-            </a>
+            {% if user.is_superuser or request.session.debug_no_login %}
             <a href="{% url 'room_log' %}" class="btn btn-outline" style="padding: 14px 24px;">
                 📋 View Audit Log
             </a>
+            {% endif %}
         </div>
     </div>
 
     <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 25px;">
 
         <div>
-            <!-- Room Details -->
             <div class="card" style="margin-bottom: 25px;">
                 <h3 style="margin-top: 0;">Room Details</h3>
                 <p style="color: var(--text-dim); line-height: 1.6;">
-                    {{ room.location }} is a {{ room.get_room_type_display|lower }} with a capacity of {{ room.capacity }} people.
+                    Modern conference room with natural light, perfect for team meetings and presentations.
                 </p>
                 
                 <h4 style="margin: 25px 0 12px 0;">Equipment</h4>
-                <p style="color: var(--text-dim);">Equipment list coming soon (add a field to Room model if needed).</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">65" 4K TV</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">HDMI + Wireless Casting</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">Conference Speakerphone</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">Whiteboard + Markers</div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px 16px; border-radius: 8px;">USB-C Charging Ports</div>
+                </div>
             </div>
 
-            <!-- Upcoming Bookings -->
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin: 0;">Upcoming Bookings</h3>
                     <a href="{% url 'my_bookings' %}" class="btn btn-outline" style="font-size: 0.85rem;">Full Calendar →</a>
                 </div>
                 <table>
-                    <thead>
-                        <tr><th>Time</th><th>Booked By</th><th>Status</th></tr>
-                    </thead>
+                    <thead><tr><th>Time</th><th>Booked By</th><th>Duration</th></tr></thead>
                     <tbody>
-                        {% for booking in upcoming_bookings %}
-                        <tr>
-                            <td>{{ booking.booking_datetime|date:"M d" }} • {{ booking.booking_datetime|time:"H:i" }}</td>
-                            <td>{{ booking.user.user.get_full_name|default:booking.user.user.username }}</td>
-                            <td><span class="badge badge-success">{{ booking.get_status_display }}</span></td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="3" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                                No upcoming bookings for this room.
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        <tr><td>Today 14:00 – 15:30</td><td>Alex Chen (You)</td><td>1h 30m</td></tr>
+                        <tr><td>Tomorrow 10:00 – 11:00</td><td>Sarah Lee</td><td>1h</td></tr>
+                        <tr><td>Mar 8 13:30 – 15:00</td><td>Marketing Team</td><td>1h 30m</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -83,43 +64,56 @@
 
         <div style="display: flex; flex-direction: column; gap: 25px;">
 
-            <!-- Quick Info -->
             <div class="card">
                 <h3 style="margin-top: 0;">Quick Info</h3>
                 <table style="width: 100%;">
-                    <tr><td style="color: var(--text-dim);">Capacity</td><td style="text-align: right; font-weight: 600;">{{ room.capacity }} people</td></tr>
-                    <tr><td style="color: var(--text-dim);">Room Type</td><td style="text-align: right;">{{ room.get_room_type_display }}</td></tr>
+                    <tr><td style="color: var(--text-dim);">Capacity</td><td style="text-align: right; font-weight: 600;">12 people</td></tr>
                     <tr><td style="color: var(--text-dim);">Face Recognition</td><td style="text-align: right;"><span class="badge badge-success">Required</span></td></tr>
-                    <tr><td style="color: var(--text-dim);">Current Occupancy</td><td style="text-align: right; color: var(--success);">{{ room.active_bookings_count }} / {{ room.capacity }}</td></tr>
+                    <tr><td style="color: var(--text-dim);">Operating Hours</td><td style="text-align: right;">7:00 – 22:00</td></tr>
+                    <tr><td style="color: var(--text-dim);">Current Occupancy</td><td style="text-align: right; color: var(--success);">3 / 12</td></tr>
                 </table>
             </div>
 
-            <!-- People with Access (placeholder) -->
             <div class="card" style="flex: 1;">
                 <h3 style="margin-bottom: 15px;">People with Access</h3>
-                <p style="color: var(--text-dim);">Access management coming soon.</p>
-                <button onclick="alert('Access management will be added soon')" 
-                        class="btn btn-outline" style="width: 100%; margin-top: 20px;">
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: var(--primary); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">AC</div>
+                        <div style="flex: 1;">
+                            <strong>Alex Chen</strong><br>
+                            <small style="color: var(--text-dim);">Owner • Full Access</small>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: #22c55e; color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">SL</div>
+                        <div style="flex: 1;">
+                            <strong>Sarah Lee</strong><br>
+                            <small style="color: var(--text-dim);">Team Lead</small>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: #a78bfa; color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">MT</div>
+                        <div style="flex: 1;">
+                            <strong>Marketing Team</strong><br>
+                            <small style="color: var(--text-dim);">Group Access</small>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="alert('Access management ready for backend integration')" class="btn btn-outline" style="width: 100%; margin-top: 20px;">
                     + Invite More Users
                 </button>
             </div>
 
-            <!-- Recent Activity -->
             <div class="card">
                 <h3 style="margin-bottom: 12px;">Recent Activity</h3>
-                {% if recent_access %}
                 <div style="font-size: 0.85rem; color: var(--text-dim); line-height: 1.7;">
-                    {% for access in recent_access %}
-                    <div>
-                        {% if access.result == 'GRANTED' %}✅{% else %}❌{% endif %} 
-                        {{ access.user.user.get_full_name|default:access.user.user.username }} • {{ access.time_ago }}
-                    </div>
-                    {% endfor %}
+                    <div>✅ Alex Chen entered • 11:42</div>
+                    <div>❌ Unknown face denied • 10:15</div>
+                    <div>📅 Booking created by Sarah • Yesterday</div>
                 </div>
-                {% else %}
-                <p style="color: var(--text-dim);">No recent access attempts.</p>
-                {% endif %}
+                {% if user.is_superuser or request.session.debug_no_login %}
                 <a href="{% url 'room_log' %}" class="btn btn-outline" style="width: 100%; margin-top: 15px; font-size: 0.85rem;">View Full Audit Log →</a>
+                {% endif %}
             </div>
 
         </div>
@@ -127,14 +121,11 @@
 
 </div>
 
-<!-- Simple calendar placeholder -->
 <div class="card" style="margin-top: 25px;">
-    <h3>Availability Calendar</h3>
-    <div style="background: rgba(255,255,255,0.03); padding: 40px; border-radius: 10px; text-align: center; color: var(--text-dim);">
-        Interactive calendar coming soon.<br>
-        <small>You can create bookings directly from here in the future.</small>
+    <h3>Availability Calendar (March 2026)</h3>
+    <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 10px; text-align: center; color: var(--text-dim); font-size: 1.1rem;">
+        [Interactive calendar would go here — powered by django-calendars or FullCalendar in production]
+        <br><small>Click any date to create a booking</small>
     </div>
 </div>
-
-{% endif %}
 {% endblock %}

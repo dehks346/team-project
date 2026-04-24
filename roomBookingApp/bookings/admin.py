@@ -4,12 +4,12 @@ from django.contrib import admin
 from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin
-from .models import Organisation, Room, UserProfile, Booking, Access, Record
+from .models import Organisation, Room, UserProfile, Booking, BookingInvitation, Access, Record
 
 # Register Room model
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
-    list_display = ['room_id', 'organisation', 'location', 'capacity', 'room_type', 'is_active', 'occupancy_display']
+    list_display = ['room_id', 'name', 'organisation', 'location', 'capacity', 'room_type', 'is_face_required', 'approval_required', 'is_active', 'occupancy_display']
     list_filter = ['room_type', 'is_active', 'organisation']
     search_fields = ['location', 'organisation__name']
     list_editable = ['is_active']
@@ -17,10 +17,17 @@ class RoomAdmin(admin.ModelAdmin):
 # Register Booking model
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ['booking_id', 'user', 'room', 'booking_datetime', 'status']
+    list_display = ['booking_id', 'user', 'room', 'booking_datetime', 'duration_minutes', 'status']
     list_filter = ['status', 'booking_datetime']
     search_fields = ['user__name', 'room__location']
     date_hierarchy = 'booking_datetime'
+
+
+@admin.register(BookingInvitation)
+class BookingInvitationAdmin(admin.ModelAdmin):
+    list_display = ['invitation_id', 'booking', 'display_name', 'status', 'created_at', 'responded_at']
+    list_filter = ['status', 'created_at']
+    search_fields = ['invited_email', 'invited_name', 'invited_user__username']
 
 # Register Access model
 @admin.register(Access)

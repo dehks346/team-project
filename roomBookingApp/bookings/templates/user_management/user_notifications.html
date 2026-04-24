@@ -2,16 +2,163 @@
 {% block title %}Notifications{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width: 800px; margin: 0 auto;">
-    <h2 style="margin-bottom: 25px;">Notifications</h2>
+<div class="card" style="max-width: 860px; margin: 0 auto;">
 
-    {% for notification in notifications %}
-    <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 12px;">
-        <p>{{ notification.message }}</p>
-        <small style="color: var(--text-dim);">{{ notification.created_at|timesince }} ago</small>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="margin: 0;">Notifications</h2>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="filter-type" onchange="filterNotifications()" 
+                    style="padding: 8px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="all">All Notifications</option>
+                <option value="booking">Bookings</option>
+                <option value="access">Access Attempts</option>
+                <option value="invite">Invites</option>
+                <option value="system">System</option>
+            </select>
+
+            <button onclick="markAllRead()" class="btn btn-outline">Mark All Read</button>
+            <button onclick="clearAll()" class="btn btn-outline">Clear All</button>
+        </div>
     </div>
-    {% empty %}
-    <p style="color: var(--text-dim); text-align: center; padding: 60px;">No notifications yet.</p>
-    {% endfor %}
+
+    <div id="notifications-list" style="max-height: 620px; overflow-y: auto;">
+
+        {% if invitations %}
+            {% for invitation in invitations %}
+            <div class="notification-item" data-type="invite" data-read="{% if invitation.status == 'PENDING' %}false{% else %}true{% endif %}" 
+                 style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer; {% if invitation.status != 'PENDING' %}opacity: 0.75;{% endif %}">
+                <div style="font-size: 1.6rem; width: 40px;">📨</div>
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; gap: 12px;">
+                        <strong>{{ invitation.booking.room.name }}</strong>
+                        <span class="badge {% if invitation.status == 'ACCEPTED' %}badge-success{% elif invitation.status == 'DECLINED' %}badge-danger{% else %}badge-primary{% endif %}" style="font-size: 0.75rem;">{{ invitation.get_status_display }}</span>
+                    </div>
+                    <p style="margin: 4px 0 0; color: var(--text-dim);">
+                        Invitation for {{ invitation.booking.booking_datetime|date:"M d, Y H:i" }}.
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+        
+        <div class="notification-item" data-type="booking" data-read="false" 
+             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer;">
+            <div style="font-size: 1.6rem; width: 40px;">📅</div>
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>Booking confirmed</strong>
+                    <span class="badge badge-success" style="font-size: 0.75rem;">Just now</span>
+                </div>
+                <p style="margin: 4px 0 0; color: var(--text-dim);">
+                    Your booking for <strong>Conference Room A</strong> (Today 14:00–15:30) is confirmed.
+                </p>
+            </div>
+            <div class="unread-dot" style="width: 10px; height: 10px; background: var(--primary); border-radius: 50%; flex-shrink: 0; align-self: center;"></div>
+        </div>
+
+        <div class="notification-item" data-type="access" data-read="false" 
+             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer;">
+            <div style="font-size: 1.6rem; width: 40px;">👤</div>
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>Access denied</strong>
+                    <span class="badge badge-danger" style="font-size: 0.75rem;">3 min ago</span>
+                </div>
+                <p style="margin: 4px 0 0; color: var(--text-dim);">
+                    Face recognition failed at <strong>Lab 3</strong> (low confidence).
+                </p>
+            </div>
+            <div class="unread-dot" style="width: 10px; height: 10px; background: var(--primary); border-radius: 50%; flex-shrink: 0; align-self: center;"></div>
+        </div>
+
+        <div class="notification-item" data-type="invite" data-read="true" 
+             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer; opacity: 0.75;">
+            <div style="font-size: 1.6rem; width: 40px;">📨</div>
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>New invite</strong>
+                    <span class="badge badge-success" style="font-size: 0.75rem;">Yesterday</span>
+                </div>
+                <p style="margin: 4px 0 0; color: var(--text-dim);">
+                    Sarah invited you to “Team Sync” in Conference Room A tomorrow.
+                </p>
+            </div>
+        </div>
+
+        <div class="notification-item" data-type="system" data-read="true" 
+             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer; opacity: 0.75;">
+            <div style="font-size: 1.6rem; width: 40px;">🛠️</div>
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>Camera maintenance</strong>
+                    <span class="badge badge-success" style="font-size: 0.75rem;">Feb 26</span>
+                </div>
+                <p style="margin: 4px 0 0; color: var(--text-dim);">
+                    Raspberry Pi camera in Lab 3 was restarted successfully.
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.5rem; margin-bottom: 15px;">📭</div>
+        <p>All caught up! No new notifications.</p>
+    </div>
+
 </div>
+
+<script>
+    function toggleRead(item) {
+        const dot = item.querySelector('.unread-dot');
+        if (dot) {
+            dot.style.display = 'none';
+            item.dataset.read = 'true';
+            item.style.opacity = '0.75';
+        }
+    }
+
+    function markAllRead() {
+        document.querySelectorAll('.notification-item').forEach(item => {
+            const dot = item.querySelector('.unread-dot');
+            if (dot) {
+                dot.style.display = 'none';
+                item.dataset.read = 'true';
+                item.style.opacity = '0.75';
+            }
+        });
+        alert('✅ All notifications marked as read');
+    }
+
+    function clearAll() {
+        if (confirm('Clear ALL notifications? This cannot be undone.')) {
+            const list = document.getElementById('notifications-list');
+            list.innerHTML = '';
+            document.getElementById('empty-state').style.display = 'block';
+        }
+    }
+
+    function filterNotifications() {
+        const filter = document.getElementById('filter-type').value;
+        const items = document.querySelectorAll('.notification-item');
+        
+        let visibleCount = 0;
+        
+        items.forEach(item => {
+            if (filter === 'all' || item.dataset.type === filter) {
+                item.style.display = 'flex';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        document.getElementById('empty-state').style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    window.onload = () => {
+        document.getElementById('empty-state').style.display = 'none';
+    };
+</script>
 {% endblock %}

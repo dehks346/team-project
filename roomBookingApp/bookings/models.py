@@ -5,28 +5,40 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 class Organisation(models.Model):
+    """Entity: Organisation"""
+
+    # Primary Key
     organisation_id = models.AutoField(primary_key=True)
+
+    # Basic Info
     name = models.CharField(max_length=200, unique=True)
     email_address = models.EmailField(unique=True)
-    unique_access_code = models.CharField(max_length=50, unique=True)
+    password = models.CharField(max_length=128)  # Store password
+    unique_access_code = models.CharField(max_length=50, unique=True, help_text="Unique code for organisation access")
     phone_number = models.CharField(max_length=20)
     address = models.TextField()
-    fee = models.DecimalField(max_digits=10, decimal_places=2)
-    number_of_rooms = models.PositiveIntegerField(default=0)
+
+    # Billing
+    fee = models.DecimalField(max_digits=10, decimal_places=2, help_text="Monthly fee")
+
+    # Stats (can be calculated, but stored for quick access)
+    number_of_users = models.PositiveIntegerField(default=0, help_text="Total users in organisation")
+    number_of_rooms = models.PositiveIntegerField(default=0, help_text="Total rooms owned by organisation")
+
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    @property
-    def user_count(self):
-        return self.user_profiles.count()
 
     def __str__(self):
         return self.name
 
     class Meta:
         ordering = ['name']
+
 
 class Room(models.Model):
     """Entity Room"""
@@ -37,9 +49,18 @@ class Room(models.Model):
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='rooms', null=True,
                                      blank=True)
 
+    name = models.CharField(max_length=200, default='Unnamed Room')
+
     location = models.CharField(max_length=200)
     capacity = models.PositiveIntegerField()
     room_type = models.CharField(max_length=50, choices=ROOM_TYPES, default='MEET')
+
+    is_face_required = models.BooleanField(default=False)
+    approval_required = models.BooleanField(default=False)
+    equipment = models.JSONField(default=list, blank=True)
+    opening_time = models.TimeField(null=True, blank=True)
+    closing_time = models.TimeField(null=True, blank=True)
+    photo_name = models.CharField(max_length=255, blank=True)
 
     """Status"""
     is_active = models.BooleanField(default=True)
@@ -76,26 +97,38 @@ class Room(models.Model):
             return "Available"
 
     def __str__(self):
-        return f"Room {self.room_id}: {self.location} ({self.room_type})"
+        return f"{self.name} - {self.location} ({self.room_type})"
 
     class Meta:
         ordering = ['room_id']
 
+
 class UserProfile(models.Model):
+    """Entity UserProfile"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    organisation = models.ForeignKey(
-        Organisation,
-        on_delete=models.SET_NULL,
-        related_name='user_profiles',
-        null=True,
-        blank=True
-    )
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='users', null=True,
+                                     blank=True)
+
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return self.user.get_full_name() or self.user.username
+    @property
+    def total_bookings(self):
+        """bookings made by user (total)"""
+        return self.bookings.count()
 
+    @property
+    def upcoming_bookings(self):
+        return self.bookings.filter(booking_datetime__gte=timezone.now(), status='CONFIRMED').count()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
 
 # MOVED Record class ABOVE Booking to fix import issue
 class Record(models.Model):
@@ -161,6 +194,10 @@ class Booking(models.Model):
 
     booking_datetime = models.DateTimeField()
     status = models.CharField(max_length=50, choices=BOOKING_STATUS, default='CONFIRMED')
+    duration_minutes = models.PositiveIntegerField(default=60)
+    notes = models.TextField(blank=True)
+    is_recurring = models.BooleanField(default=False)
+    recurrence_pattern = models.CharField(max_length=50, blank=True)
 
     """Timestamps"""
     created_at = models.DateTimeField(auto_now_add=True)
@@ -177,11 +214,12 @@ class Booking(models.Model):
                 raise ValidationError(f'Room is at capacity ({self.room.occupancy_display})')
 
     def save(self, *args, **kwargs):
+        is_new = self._state.adding
         self.clean()
         super().save(*args, **kwargs)
 
         # Create a record entry automatically when booking is created
-        if not self.pk:  # Only on creation
+        if is_new:
             Record.objects.create(
                 booking=self,
                 action='BOOKING_CREATED',
@@ -204,6 +242,47 @@ class Booking(models.Model):
 
     class Meta:
         ordering = ['-booking_datetime']
+
+
+class BookingInvitation(models.Model):
+    """Entity for tracking invite decisions per invited user."""
+
+    INVITE_STATUS = [
+        ('PENDING', 'Pending'),
+        ('ACCEPTED', 'Accepted'),
+        ('DECLINED', 'Declined'),
+    ]
+
+    invitation_id = models.AutoField(primary_key=True)
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='invitations')
+    invited_user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='booking_invitations')
+    invited_email = models.EmailField(blank=True)
+    invited_name = models.CharField(max_length=150, blank=True)
+    status = models.CharField(max_length=20, choices=INVITE_STATUS, default='PENDING')
+    responded_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def mark_accepted(self):
+        self.status = 'ACCEPTED'
+        self.responded_at = timezone.now()
+        self.save(update_fields=['status', 'responded_at'])
+
+    def mark_declined(self):
+        self.status = 'DECLINED'
+        self.responded_at = timezone.now()
+        self.save(update_fields=['status', 'responded_at'])
+
+    @property
+    def display_name(self):
+        if self.invited_user:
+            return self.invited_user.get_full_name().strip() or self.invited_user.username
+        return self.invited_name or self.invited_email
+
+    def __str__(self):
+        return f"Invite #{self.invitation_id}: {self.display_name} - {self.status}"
+
+    class Meta:
+        ordering = ['-created_at']
 
 
 class Access(models.Model):
@@ -245,11 +324,14 @@ class Access(models.Model):
         verbose_name_plural = "Access"
 
 
-class Notification(models.Model):
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='notifications')
-    message = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created and not hasattr(instance, 'userprofile'):
+        UserProfile.objects.create(
+            user=instance,
+            name=instance.get_full_name().strip() or instance.username,
+            email=instance.email or f'{instance.username}@example.com',
+            phone_number='',
+        )
 
-    def __str__(self):
-        return self.message
+

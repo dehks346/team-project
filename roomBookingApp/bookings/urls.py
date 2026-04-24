@@ -1,5 +1,4 @@
 from django.urls import path
-from django.contrib.auth.views import PasswordResetDoneView, PasswordResetCompleteView
 from .views import (
     CustomLoginView, CustomRegisterView, CustomPasswordResetView, CustomPasswordResetConfirmView,
     CustomPasswordChangeView, custom_logout, HomeView, UserProfileView, UserEditView,
@@ -10,17 +9,11 @@ from .views import (
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
     PrivacyBiometricConsentView, ToggleDebugView, video_stream, get_face_status, toggle_face_detection,
     enrollment_stream, capture_face_image, verification_stream, start_face_verification,
-    set_confidence_threshold, complete_face_login, cancel_booking
+    set_confidence_threshold, complete_face_login, BookingFaceGateView, BookingInvitationRespondView
 )
 
 urlpatterns = [
     path('login/', CustomLoginView.as_view(), name='login'),
-    path('password_reset/done/', PasswordResetDoneView.as_view(
-    template_name='auth/password_reset_done.html'
-    ), name='password_reset_done'),
-    path('reset/done/', PasswordResetCompleteView.as_view(
-    template_name='auth/password_reset_complete.html'
-    ), name='password_reset_complete'),
     path('register/', CustomRegisterView.as_view(), name='register'),
     path('password_reset/', CustomPasswordResetView.as_view(), name='password_reset'),
     path('password_reset_confirm/<uidb64>/<token>/', CustomPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
@@ -42,10 +35,11 @@ urlpatterns = [
     path('rooms/log/', RoomLogView.as_view(), name='room_log'),
 
     path('bookings/create/', BookingCreationView.as_view(), name='booking_creation'),
-    path('bookings/edit/<int:pk>/', BookingEditView.as_view(), name='booking_edit'),
+    path('bookings/start/<int:room_id>/', BookingFaceGateView.as_view(), name='booking_face_gate'),
+    path('bookings/edit/', BookingEditView.as_view(), name='booking_edit'),
     path('bookings/my/', MyBookingsView.as_view(), name='my_bookings'),
     path('bookings/invitation/', BookingInvitationView.as_view(), name='booking_invitation'),
-    path('bookings/cancel/<int:booking_id>/', cancel_booking, name='cancel_booking'),
+    path('bookings/invitation/<int:invite_id>/respond/', BookingInvitationRespondView.as_view(), name='booking_invitation_respond'),
 
     path('face/enrollment/', FaceEnrollmentView.as_view(), name='face_enrollment'),
     path('face/enrollment_stream/', enrollment_stream, name='enrollment_stream'),

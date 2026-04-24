@@ -176,9 +176,13 @@
             <h3>Rooms</h3>
             <a href="{% url 'room_list' %}" class="nav-link {% if request.resolver_match.url_name == 'room_list' %}active{% endif %}">📋 Room List</a>
             <a href="{% url 'room_overview' %}" class="nav-link">🔍 Room Overview</a>
+            {% if user.is_superuser or request.session.debug_no_login %}
             <a href="{% url 'room_creation' %}" class="nav-link">➕ Create Room</a>
             <a href="{% url 'room_permissions' %}" class="nav-link">🔑 Permissions</a>
+            {% if user.is_superuser or request.session.debug_no_login %}
             <a href="{% url 'room_log' %}" class="nav-link">📜 Room Log</a>
+            {% endif %}
+            {% endif %}
         </div>
 
         <div class="nav-section">

@@ -1,47 +1,30 @@
 from django.shortcuts import render, redirect
+from django import forms
 from django.contrib.auth.views import LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView, PasswordChangeView
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
+from django.contrib.auth.forms import AuthenticationForm
 from django.views.generic import TemplateView, CreateView, UpdateView, ListView, DetailView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib import messages
 from django.contrib.auth import logout, login
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.models import User
+from django.db import models
 from django.http import StreamingHttpResponse
-from django.utils import timezone
-from .models import Booking
+from urllib.parse import urlencode
 import io
-from django.shortcuts import get_object_or_404
-from .models import Room, Booking
 import json
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-from .models import Booking, Record
-from django.views.generic.edit import CreateView
-from django.urls import reverse_lazy
-from django.contrib import messages
-from .models import Booking
-from .forms import BookingForm, BookingEditForm
-from django.views.generic.edit import CreateView
-from django.urls import reverse_lazy
-from django.contrib import messages
-from .models import Room
-from .forms import RoomForm
-from django.utils import timezone
-from datetime import timedelta
-from .models import Room, Booking, Access
 import sys
 import time
-from django.utils import timezone
-from datetime import timedelta
-from .models import Room, Booking, Access
+from datetime import datetime, timedelta
 import cv2
-from django.contrib import messages
-from django.contrib.auth.models import User
-from django.views import View
 import numpy as np
-from .forms import CustomUserCreationForm
 from pathlib import Path
+from django.utils.dateparse import parse_date, parse_time
+from django.utils import timezone
+from django.contrib.auth.models import User
+from django.http import JsonResponse
+from .models import Room, UserProfile, Booking, BookingInvitation, Access
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -65,6 +48,183 @@ MIN_CONFIDENCE_THRESHOLD = 40
 MAX_CONFIDENCE_THRESHOLD = 120
 CONFIDENCE_THRESHOLD = 75
 last_prediction_distance = None
+DASHBOARD_REDIRECT_URL_NAME = 'home'
+FACE_BOOKING_PENDING_ROOM_SESSION_KEY = 'face_booking_pending_room_id'
+FACE_BOOKING_REDIRECT_SESSION_KEY = 'face_booking_redirect_url'
+FACE_BOOKING_VERIFIED_ROOM_SESSION_KEY = 'face_booking_verified_room_id'
+
+
+def _get_room_by_id(room_id):
+    if not room_id:
+        return None
+    try:
+        return Room.objects.filter(room_id=int(room_id), is_active=True).first()
+    except (TypeError, ValueError):
+        return None
+
+
+def _room_requires_face_verification(room_id):
+    room = _get_room_by_id(room_id)
+    return bool(room and room.is_face_required)
+
+
+def _booking_creation_url(room_id=None):
+    booking_url = reverse('booking_creation')
+    if not room_id:
+        return booking_url
+    return f"{booking_url}?{urlencode({'room': room_id})}"
+
+
+def _face_verification_url(next_url=None, room_id=None, purpose='login'):
+    params = {'purpose': purpose}
+    if next_url:
+        params['next'] = next_url
+    if room_id:
+        params['room'] = room_id
+    return f"{reverse('face_verification')}?{urlencode(params)}"
+
+
+def _get_or_create_user_profile(user):
+    profile, _ = UserProfile.objects.get_or_create(
+        user=user,
+        defaults={
+            'name': user.get_full_name().strip() or user.username,
+            'email': user.email or f'{user.username}@example.com',
+            'phone_number': '',
+        },
+    )
+    if not profile.email:
+        profile.email = user.email or f'{user.username}@example.com'
+        profile.save(update_fields=['email'])
+    return profile
+
+
+def _parse_equipment(raw_equipment):
+    if not raw_equipment:
+        return []
+    if isinstance(raw_equipment, list):
+        return [item for item in raw_equipment if str(item).strip()]
+    return [item.strip() for item in str(raw_equipment).split(',') if item.strip()]
+
+
+def _parse_invite_tokens(raw_invites):
+    if not raw_invites:
+        return []
+    return [token.strip() for token in str(raw_invites).split(',') if token.strip()]
+
+
+def _resolve_invitee(token):
+    matched_user = User.objects.filter(email__iexact=token).first()
+    if matched_user:
+        return matched_user, matched_user.email, matched_user.get_full_name().strip() or matched_user.username
+
+    matched_user = User.objects.filter(username__iexact=token).first()
+    if matched_user:
+        return matched_user, matched_user.email, matched_user.get_full_name().strip() or matched_user.username
+
+    for candidate in User.objects.filter(is_active=True):
+        if candidate.get_full_name().strip().lower() == token.lower():
+            return candidate, candidate.email, candidate.get_full_name().strip() or candidate.username
+
+    return None, token, token
+
+
+class WebsiteUserCreationForm(UserCreationForm):
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('admin', 'Admin'),
+    ]
+
+    name = forms.CharField(max_length=150)
+    email = forms.EmailField(required=True)
+    role = forms.ChoiceField(choices=ROLE_CHOICES)
+    username = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ('name', 'email', 'role', 'username', 'password1', 'password2')
+
+    def __init__(self, *args, **kwargs):
+        self.allow_admin_creation = kwargs.pop('allow_admin_creation', False)
+        super().__init__(*args, **kwargs)
+        if not self.allow_admin_creation:
+            self.fields['role'].choices = [('user', 'User')]
+
+    def _generate_username_from_email(self, email):
+        base_username = (email.split('@')[0] if '@' in email else email).strip().lower() or 'user'
+        candidate = base_username
+        suffix = 1
+
+        while User.objects.filter(username__iexact=candidate).exists():
+            suffix += 1
+            candidate = f"{base_username}{suffix}"
+
+        return candidate
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email:
+            raise forms.ValidationError('Email is required.')
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+    def clean_role(self):
+        role = self.cleaned_data.get('role')
+        if role == 'admin' and not self.allow_admin_creation:
+            raise forms.ValidationError('Only admins can create admin accounts.')
+        return role
+
+    def clean_username(self):
+        username = (self.cleaned_data.get('username') or '').strip()
+        if username:
+            return username
+
+        email = (self.data.get('email') or '').strip().lower()
+        if not email:
+            return username
+
+        return self._generate_username_from_email(email)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        email = cleaned_data.get('email')
+
+        if email:
+            cleaned_data['email'] = email.strip().lower()
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        full_name = (self.cleaned_data.get('name') or '').strip()
+        name_parts = full_name.split()
+
+        user.email = self.cleaned_data['email']
+        user.first_name = name_parts[0] if name_parts else ''
+        user.last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+
+        role = self.cleaned_data.get('role', 'user')
+        user.is_staff = role == 'admin'
+        user.is_superuser = role == 'admin'
+
+        if commit:
+            user.save()
+
+        return user
+
+
+class EmailOrUsernameAuthenticationForm(AuthenticationForm):
+    def clean(self):
+        username_or_email = (self.cleaned_data.get('username') or '').strip()
+        password = self.cleaned_data.get('password')
+
+        if username_or_email and '@' in username_or_email:
+            matched_user = User.objects.filter(email__iexact=username_or_email).first()
+            if matched_user is not None:
+                self.cleaned_data['username'] = matched_user.get_username()
+
+        return super().clean()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FACE_RECOGNITION_DIR = PROJECT_ROOT / "Face_Recognition"
@@ -576,6 +736,16 @@ def complete_face_login(request):
     login(request, matched_user, backend='django.contrib.auth.backends.ModelBackend')
     request.session['face_login_verified'] = True
 
+    pending_room = request.session.get(FACE_BOOKING_PENDING_ROOM_SESSION_KEY)
+    booking_redirect_url = request.session.get(FACE_BOOKING_REDIRECT_SESSION_KEY)
+    redirect_url = reverse(DASHBOARD_REDIRECT_URL_NAME)
+
+    if booking_redirect_url and _room_requires_face_verification(pending_room):
+        request.session[FACE_BOOKING_VERIFIED_ROOM_SESSION_KEY] = pending_room
+        request.session.pop(FACE_BOOKING_PENDING_ROOM_SESSION_KEY, None)
+        request.session.pop(FACE_BOOKING_REDIRECT_SESSION_KEY, None)
+        redirect_url = booking_redirect_url
+
     confirmed_name = None
     frame_count = 0
     last_prediction_distance = None
@@ -583,7 +753,7 @@ def complete_face_login(request):
     return JsonResponse({
         'success': True,
         'user': matched_user.get_full_name().strip() or matched_user.username,
-        'redirect_url': reverse('home'),
+        'redirect_url': redirect_url,
     })
 
 
@@ -860,50 +1030,33 @@ class DebugAdminRequiredMixin(AdminRequiredMixin):
 
 class CustomLoginView(LoginView):
     template_name = 'auth/login.html'
+    authentication_form = EmailOrUsernameAuthenticationForm
 
-class CustomRegisterView(View):
+    def get_success_url(self):
+        return reverse_lazy(DASHBOARD_REDIRECT_URL_NAME)
+
+class CustomRegisterView(CreateView):
+    form_class = WebsiteUserCreationForm
     template_name = 'auth/register.html'
+    success_url = reverse_lazy('home')
 
-    def get(self, request):
-        return render(request, self.template_name)
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['allow_admin_creation'] = self.request.user.is_authenticated and self.request.user.is_superuser
+        return kwargs
 
-    def post(self, request):
-        name = request.POST.get('name')
-        email = request.POST.get('email')
-        password1 = request.POST.get('password1')
-        password2 = request.POST.get('password2')
-        role = request.POST.get('role')
+    def form_valid(self, form):
+        self.object = form.save()
+        if not self.request.user.is_authenticated:
+            login(self.request, self.object)
+        messages.success(self.request, 'Account created successfully.')
+        return redirect(self.get_success_url())
 
-        # Basic validation
-        if password1 != password2:
-            messages.error(request, "Passwords do not match")
-            return redirect('register')
-
-        if User.objects.filter(username=email).exists():
-            messages.error(request, "Email already in use")
-            return redirect('register')
-
-        # Split name
-        first_name = name.split(' ')[0]
-        last_name = ' '.join(name.split(' ')[1:]) if len(name.split()) > 1 else ''
-
-        # Create user
-        user = User.objects.create_user(
-            username=email,  # using email as username
-            email=email,
-            password=password1,
-            first_name=first_name,
-            last_name=last_name
-        )
-
-        # Handle role (optional)
-        if role == 'admin':
-            user.is_staff = True
-            user.save()
-
-        login(request, user)
-
-        return redirect('home')
+    def form_invalid(self, form):
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(self.request, error)
+        return super().form_invalid(form)
 
 class CustomPasswordResetView(PasswordResetView):
     template_name = 'auth/password_reset.html'
@@ -920,108 +1073,54 @@ def custom_logout(request):
     logout(request)
     return redirect('login')
 
-@login_required
-@require_POST
-def cancel_booking(request, booking_id):
-    try:
-        profile = request.user.userprofile
-        booking = Booking.objects.get(
-            booking_id=booking_id,
-            user=profile,
-            status='CONFIRMED'
-        )
-
-        if not booking.can_cancel:
-            return JsonResponse({'success': False, 'error': 'This booking cannot be cancelled anymore.'}, status=400)
-
-        booking.status = 'CANCELLED'
-        booking.save()
-
-        # Create audit record
-        Record.objects.create(
-            booking=booking,
-            action='BOOKING_CANCELLED',
-            description=f"Booking cancelled for {booking.room.location}"
-        )
-
-        return JsonResponse({'success': True, 'message': 'Booking cancelled successfully.'})
-
-    except Booking.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Booking not found or you cannot cancel it.'}, status=404)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
 class HomeView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'dashboard/home.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        profile = self.request.user.userprofile
-        organisation = profile.organisation
+        user_profile = _get_or_create_user_profile(self.request.user)
+        now = timezone.now()
+        today = timezone.localdate()
+        week_end = today + timedelta(days=7)
 
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
-        week_end = today_start + timedelta(days=7)
+        user_bookings = Booking.objects.filter(user=user_profile).select_related('room')
+        today_bookings = user_bookings.filter(booking_datetime__date=today).order_by('booking_datetime')
+        upcoming_week_bookings = user_bookings.filter(
+            booking_datetime__date__gt=today,
+            booking_datetime__date__lte=week_end,
+        ).order_by('booking_datetime')
 
-        # Real stats
-        context['bookings_today'] = Booking.objects.filter(
-            user=profile,
-            booking_datetime__gte=today_start,
-            booking_datetime__lt=today_end,
-            status='CONFIRMED'
-        ).count()
+        user_invites = BookingInvitation.objects.filter(
+            models.Q(invited_user=self.request.user) | models.Q(invited_email__iexact=self.request.user.email)
+        ).select_related('booking', 'booking__room')
 
-        context['rooms_available'] = Room.objects.filter(
-            organisation=organisation,
-            is_active=True
-        ).count()   # You can make this smarter later using .is_available
+        pending_invites = user_invites.filter(status='PENDING').order_by('-created_at')
 
-        context['pending_invites'] = 0  # We'll implement invitations later if needed
+        active_rooms = list(Room.objects.filter(is_active=True).order_by('room_id'))
+        available_rooms_count = sum(1 for room in active_rooms if room.is_available)
 
-        # Real data for tables
-        context['today_bookings'] = Booking.objects.filter(
-            user=profile,
-            booking_datetime__gte=today_start,
-            booking_datetime__lt=today_end,
-            status='CONFIRMED'
-        ).select_related('room')[:5]
+        context['bookings_today_count'] = today_bookings.count()
+        context['rooms_available_count'] = available_rooms_count
+        context['pending_invites_count'] = pending_invites.count()
 
-        context['upcoming_bookings'] = Booking.objects.filter(
-            user=profile,
-            booking_datetime__gte=timezone.now(),
-            status='CONFIRMED'
-        ).order_by('booking_datetime')[:6]
-
-        context['managed_rooms'] = Room.objects.filter(
-            organisation=organisation,
-            is_active=True
-        )[:5]
-
-        # Rooms user can access = all active rooms in organisation for now
-        context['accessible_rooms'] = Room.objects.filter(
-            organisation=organisation,
-            is_active=True
-        )[:5]
-
-        # Recent access attempts (real data)
-        context['recent_access'] = Access.objects.filter(
-            room__organisation=organisation
-        ).select_related('room', 'user')[:5]
-
+        context['today_bookings'] = today_bookings[:5]
+        context['upcoming_week_bookings'] = upcoming_week_bookings[:5]
+        context['managed_rooms'] = active_rooms[:5]
+        context['accessible_rooms'] = active_rooms[:5]
+        context['pending_invites'] = pending_invites[:5]
+        context['recent_access_attempts'] = Access.objects.select_related('room', 'user').order_by('-access_datetime')[:5]
+        context['now'] = now
         return context
 
 class LiveFeedView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'live_system/live_feed.html'
 
-class UserProfileView(DebugLoginRequiredMixin, TemplateView):
+class UserProfileView(DebugLoginRequiredMixin, DetailView):
+    model = User
     template_name = 'user_management/user_profile.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        profile = self.request.user.userprofile
-        context['profile'] = profile
-        context['bookings_count'] = profile.bookings.count()
-        return context
+    context_object_name = 'user_obj'
+    def get_object(self):
+        return self.request.user
 
 class UserEditView(DebugLoginRequiredMixin, UpdateView):
     model = User
@@ -1037,11 +1136,10 @@ class UserNotificationsView(DebugLoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
-        profile = self.request.user.userprofile
-
-        context['notifications'] = profile.notifications.all().order_by('-created_at')
-
+        user = self.request.user
+        context['invitations'] = BookingInvitation.objects.filter(
+            models.Q(invited_user=user) | models.Q(invited_email__iexact=user.email)
+        ).order_by('-created_at')
         return context
 
 class UserManagementView(DebugAdminRequiredMixin, ListView):
@@ -1049,175 +1147,212 @@ class UserManagementView(DebugAdminRequiredMixin, ListView):
     template_name = 'user_management/user_management.html'
     context_object_name = 'users'
 
-from .models import Room
-
 class RoomListView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_list.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        profile = self.request.user.userprofile
-
-        rooms = Room.objects.filter(
-            organisation=profile.organisation
-        ).order_by('location')
-
-        context['rooms'] = rooms
-        context['total_rooms'] = rooms.count()
-
+        context['rooms'] = Room.objects.filter(is_active=True).order_by('room_id')
         return context
 
 class RoomOverviewView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_overview.html'
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        profile = self.request.user.userprofile
+class RoomCreationView(DebugAdminRequiredMixin, TemplateView):
+    template_name = 'room_management/room_creation.html'
 
-        room_id = self.request.GET.get('room_id')
+    def post(self, request, *args, **kwargs):
+        room_name = (request.POST.get('name') or '').strip()
+        location = (request.POST.get('location') or '').strip()
+        capacity = request.POST.get('capacity') or 0
+        room_type = request.POST.get('room_type') or 'MEET'
+        is_face_required = request.POST.get('is_face_required') == 'on'
+        approval_required = request.POST.get('approval_required') == 'on'
+        opening_time = parse_time(request.POST.get('opening_time') or '')
+        closing_time = parse_time(request.POST.get('closing_time') or '')
+        equipment = _parse_equipment(request.POST.get('equipment'))
+        photo_name = ''
+
+        uploaded_photo = request.FILES.get('photo')
+        if uploaded_photo:
+            photo_name = uploaded_photo.name
+
+        if not room_name or not location:
+            messages.error(request, 'Room name and location are required.')
+            return self.get(request, *args, **kwargs)
 
         try:
-            if room_id:
-                room = get_object_or_404(Room, room_id=room_id, organisation=profile.organisation)
-            else:
-                # Fallback: show first active room
-                room = Room.objects.filter(
-                    organisation=profile.organisation, 
-                    is_active=True
-                ).first()
-        except:
-            room = None
+            capacity_value = int(capacity)
+        except (TypeError, ValueError):
+            messages.error(request, 'Capacity must be a number.')
+            return self.get(request, *args, **kwargs)
 
-        if not room:
-            context['room'] = None
-            context['error'] = "Room not found or you don't have access to it."
-            return context
+        Room.objects.create(
+            name=room_name,
+            location=location,
+            capacity=capacity_value,
+            room_type=room_type,
+            is_face_required=is_face_required,
+            approval_required=approval_required,
+            equipment=equipment,
+            opening_time=opening_time,
+            closing_time=closing_time,
+            photo_name=photo_name,
+            organisation=None,
+        )
 
-        context['room'] = room
-
-        # Real upcoming bookings for this specific room
-        context['upcoming_bookings'] = Booking.objects.filter(
-            room=room,
-            booking_datetime__gte=timezone.now(),
-            status='CONFIRMED'
-        ).select_related('user__user').order_by('booking_datetime')[:6]
-
-        # Recent access attempts for this room
-        context['recent_access'] = Access.objects.filter(
-            room=room
-        ).select_related('user__user').order_by('-access_datetime')[:5]
-
-        return context
-
-class RoomCreationView(DebugLoginRequiredMixin, CreateView):
-    model = Room
-    form_class = RoomForm
-    template_name = 'room_management/room_creation.html'
-    success_url = reverse_lazy('room_list')
-
-    def form_valid(self, form):
-        # Automatically assign the room to the user's organisation
-        form.instance.organisation = self.request.user.userprofile.organisation
-        messages.success(self.request, f'Room "{form.instance.location}" created successfully!')
-        return super().form_valid(form)
-
-    def form_invalid(self, form):
-        messages.error(self.request, 'Please correct the errors below.')
-        return super().form_invalid(form)
+        messages.success(request, f'Room "{room_name}" created successfully.')
+        return redirect('room_list')
 
 class RoomEditView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_edit.html'
 
-class RoomPermissionsView(DebugLoginRequiredMixin, TemplateView):
+class RoomPermissionsView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_permissions.html'
 
-class RoomLogView(DebugLoginRequiredMixin, TemplateView):
+class RoomLogView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_log.html'
+
+
+class BookingFaceGateView(DebugLoginRequiredMixin, View):
+    def get(self, request, room_id, *args, **kwargs):
+        booking_url = _booking_creation_url(room_id)
+
+        if not _room_requires_face_verification(room_id):
+            return redirect(booking_url)
+
+        request.session[FACE_BOOKING_PENDING_ROOM_SESSION_KEY] = str(room_id)
+        request.session[FACE_BOOKING_REDIRECT_SESSION_KEY] = booking_url
+        return redirect(_face_verification_url(next_url=booking_url, room_id=room_id, purpose='booking'))
+
+class BookingCreationView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'booking_system/booking_creation.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        profile = self.request.user.userprofile
-
-        context['records'] = Record.objects.filter(
-            room__organisation=profile.organisation
-        ).select_related('booking', 'room', 'user').order_by('-timestamp')[:50]
-
+        room_id = self.request.GET.get('room')
+        context['rooms'] = Room.objects.filter(is_active=True).order_by('room_id')
+        context['selected_room'] = _get_room_by_id(room_id)
         return context
 
-class BookingCreationView(DebugLoginRequiredMixin, CreateView):
-    model = Booking
-    form_class = BookingForm
-    template_name = 'booking_system/booking_creation.html'
-    success_url = reverse_lazy('my_bookings')   # or 'room_list' if you prefer
+    def dispatch(self, request, *args, **kwargs):
+        room_id = (request.GET.get('room') or '').strip()
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
+        if _room_requires_face_verification(room_id):
+            verified_room = request.session.get(FACE_BOOKING_VERIFIED_ROOM_SESSION_KEY)
 
-    def form_valid(self, form):
-        form.instance.user = self.request.user.userprofile
-        messages.success(self.request, f'Booking for {form.instance.room.location} created successfully!')
-        return super().form_valid(form)
+            if verified_room != room_id:
+                booking_url = _booking_creation_url(room_id)
+                request.session[FACE_BOOKING_PENDING_ROOM_SESSION_KEY] = room_id
+                request.session[FACE_BOOKING_REDIRECT_SESSION_KEY] = booking_url
+                return redirect(_face_verification_url(next_url=booking_url, room_id=room_id, purpose='booking'))
 
-    def form_invalid(self, form):
-        messages.error(self.request, 'Please fix the errors below.')
-        return super().form_invalid(form)
+            request.session.pop(FACE_BOOKING_VERIFIED_ROOM_SESSION_KEY, None)
 
-    def get_initial(self):
-        initial = super().get_initial()
-        room_id = self.request.GET.get('room_id')
-        if room_id:
-            try:
-                initial['room'] = int(room_id)
-            except:
-                pass
-        return initial
+        return super().dispatch(request, *args, **kwargs)
 
-class BookingEditView(DebugLoginRequiredMixin, UpdateView):
-    model = Booking
-    form_class = BookingEditForm
+    def post(self, request, *args, **kwargs):
+        room_id = request.GET.get('room') or request.POST.get('room')
+        room = _get_room_by_id(room_id)
+        if room is None:
+            messages.error(request, 'Please select a valid room.')
+            return redirect('booking_creation')
+
+        user_profile = _get_or_create_user_profile(request.user)
+
+        booking_date = parse_date(request.POST.get('booking_date') or '')
+        start_time = parse_time(request.POST.get('start_time') or '')
+        duration_minutes = int(request.POST.get('duration') or 60)
+        notes = (request.POST.get('notes') or '').strip()
+        recurring = request.POST.get('recurring') == 'on'
+        recurrence_pattern = (request.POST.get('recurrence_pattern') or '').strip()
+        invitees = _parse_invite_tokens(request.POST.get('invitees'))
+
+        if not booking_date or not start_time:
+            messages.error(request, 'Booking date and start time are required.')
+            return redirect(f"{reverse('booking_creation')}?room={room.room_id}")
+
+        booking_datetime = timezone.make_aware(datetime.combine(booking_date, start_time))
+
+        booking = Booking.objects.create(
+            user=user_profile,
+            room=room,
+            booking_datetime=booking_datetime,
+            duration_minutes=duration_minutes,
+            notes=notes,
+            is_recurring=recurring,
+            recurrence_pattern=recurrence_pattern,
+        )
+
+        for token in invitees:
+            invited_user, invited_email, invited_name = _resolve_invitee(token)
+            BookingInvitation.objects.create(
+                booking=booking,
+                invited_user=invited_user,
+                invited_email=invited_email,
+                invited_name=invited_name,
+            )
+
+        messages.success(request, 'Booking saved successfully.')
+        return redirect('my_bookings')
+
+class BookingEditView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/booking_edit.html'
-    success_url = reverse_lazy('my_bookings')
-
-    def get_queryset(self):
-        return Booking.objects.filter(user=self.request.user.userprofile)
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Booking updated successfully!')
-        return super().form_valid(form)
-
-from .models import Booking
 
 class MyBookingsView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/my_bookings.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        profile = self.request.user.userprofile
+        user_profile = UserProfile.objects.filter(user=self.request.user).first()
+        if user_profile:
+            all_bookings = Booking.objects.filter(user=user_profile).select_related('room').order_by('-booking_datetime')
+        else:
+            all_bookings = Booking.objects.none()
 
-        # Upcoming: Confirmed bookings in the future
-        context['upcoming_bookings'] = Booking.objects.filter(
-            user=profile,
-            booking_datetime__gte=timezone.now(),
-            status='CONFIRMED'
-        ).select_related('room').order_by('booking_datetime')
-
-        # Past: All bookings that are either in the past OR cancelled/completed
-        context['past_bookings'] = Booking.objects.filter(
-            user=profile
-        ).exclude(
-            booking_datetime__gte=timezone.now(),
-            status='CONFIRMED'
-        ).select_related('room').order_by('-booking_datetime')
-
-        context['has_upcoming'] = context['upcoming_bookings'].exists()
-        context['has_past'] = context['past_bookings'].exists()
-
+        now = timezone.now()
+        context['bookings'] = all_bookings
+        context['upcoming_bookings'] = all_bookings.filter(booking_datetime__gte=now)
+        context['past_bookings'] = all_bookings.filter(booking_datetime__lt=now)
+        context['invitations'] = BookingInvitation.objects.filter(
+            models.Q(invited_user=self.request.user) | models.Q(invited_email__iexact=self.request.user.email)
+        ).order_by('-created_at')
         return context
 
 class BookingInvitationView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/booking_invitation.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['invitations'] = BookingInvitation.objects.filter(
+            models.Q(invited_user=self.request.user) | models.Q(invited_email__iexact=self.request.user.email)
+        ).order_by('-created_at')
+        return context
+
+
+class BookingInvitationRespondView(DebugLoginRequiredMixin, View):
+    def post(self, request, invite_id, *args, **kwargs):
+        invite = BookingInvitation.objects.filter(invitation_id=invite_id).first()
+        if invite is None:
+            messages.error(request, 'Invitation not found.')
+            return redirect('booking_invitation')
+
+        is_target_user = invite.invited_user == request.user or (invite.invited_email and invite.invited_email.lower() == request.user.email.lower())
+        if not is_target_user:
+            messages.error(request, 'You cannot modify this invitation.')
+            return redirect('booking_invitation')
+
+        action = (request.POST.get('action') or '').strip().lower()
+        if action == 'accept':
+            invite.mark_accepted()
+            messages.success(request, 'Invitation accepted.')
+        elif action == 'decline':
+            invite.mark_declined()
+            messages.success(request, 'Invitation declined.')
+        else:
+            messages.error(request, 'Invalid invitation action.')
+
+        return redirect('booking_invitation')
 
 class FaceEnrollmentView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'face_recognition/face_enrollment.html'

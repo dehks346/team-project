@@ -1,15 +1,12 @@
 {% extends 'base.html' %}
-{% csrf_token %}
-
 {% block title %}My Bookings{% endblock %}
 
 {% block content %}
-
 <div class="card" style="max-width: 1100px; margin: 0 auto;">
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
         <h2 style="margin: 0;">My Bookings</h2>
-
+        
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             <a href="{% url 'booking_creation' %}" class="btn btn-primary">+ New Booking</a>
             <a href="#" onclick="toggleCalendarView()" class="btn btn-outline">📅 Calendar View</a>
@@ -18,15 +15,9 @@
 
     <div style="margin-bottom: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 25px;">
         <button onclick="switchTab(0)" id="tab-0" 
-                class="tab-button active"
-                style="background: none; border: none; padding: 10px 0; font-weight: 600; border-bottom: 3px solid var(--primary); color: var(--text);">
-            Upcoming ({{ upcoming_bookings|length }})
-        </button>
+                class="tab-button active" style="background: none; border: none; padding: 10px 0; font-weight: 600; border-bottom: 3px solid var(--primary); color: var(--text);">Upcoming</button>
         <button onclick="switchTab(1)" id="tab-1" 
-                class="tab-button"
-                style="background: none; border: none; padding: 10px 0; font-weight: 600; color: var(--text-dim);">
-            Past ({{ past_bookings|length }})
-        </button>
+                class="tab-button" style="background: none; border: none; padding: 10px 0; font-weight: 600; color: var(--text-dim);">Past</button>
     </div>
 
     <table id="bookings-table">
@@ -39,81 +30,57 @@
                 <th>Actions</th>
             </tr>
         </thead>
-
-        <!-- Upcoming -->
         <tbody id="upcoming-body">
             {% for booking in upcoming_bookings %}
             <tr data-status="upcoming">
-                <td><strong>{{ booking.room.location }}</strong></td>
+                <td><strong>{{ booking.room.name }}</strong></td>
+                <td>{{ booking.booking_datetime|date:"M d, Y • H:i" }}</td>
+                <td>{{ booking.duration_minutes }}m</td>
+                <td><span class="badge badge-success">{{ booking.get_status_display }}</span></td>
                 <td>
-                    {{ booking.booking_datetime|date:"M d, Y" }} • 
-                    {{ booking.booking_datetime|time:"H:i" }}
-                </td>
-                <td>—</td>
-                <td>
-                    <span class="badge badge-success">{{ booking.get_status_display }}</span>
-                </td>
-                <td>
-                    <a href="{% url 'booking_edit' booking.booking_id %}" 
-                       class="btn btn-outline" 
-                       style="padding: 6px 12px; font-size: 0.85rem; margin-right: 6px;">
-                        Edit
-                    </a>
-                    {% if booking.can_cancel %}
-                    <button onclick="cancelBooking({{ booking.booking_id }})" 
-                            class="btn btn-danger" 
-                            style="padding: 6px 12px; font-size: 0.85rem;">
-                        Cancel
-                    </button>
-                    {% else %}
-                    <span style="color: var(--text-dim);">Cannot cancel</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5" style="text-align:center; padding:60px 20px; color:var(--text-dim);">
-                    No upcoming bookings yet.<br>
-                    <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="margin-top:15px;">
-                        Create your first booking
-                    </a>
+                    <a href="{% url 'booking_edit' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
+                    <button onclick="cancelBooking(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Cancel</button>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
 
-        <!-- Past -->
-        <tbody id="past-body" style="display:none;">
+        <tbody id="past-body" style="display: none;">
             {% for booking in past_bookings %}
             <tr data-status="past">
-                <td><strong>{{ booking.room.location }}</strong></td>
+                <td><strong>{{ booking.room.name }}</strong></td>
+                <td>{{ booking.booking_datetime|date:"M d, Y • H:i" }}</td>
+                <td>{{ booking.duration_minutes }}m</td>
+                <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">{{ booking.get_status_display }}</span></td>
                 <td>
-                    {{ booking.booking_datetime|date:"M d, Y" }} • 
-                    {{ booking.booking_datetime|time:"H:i" }}
-                </td>
-                <td>—</td>
-                <td>
-                    <span class="badge" style="background:rgba(148,163,184,0.2); color:var(--text-dim);">
-                        {{ booking.get_status_display }}
-                    </span>
-                </td>
-                <td>
-                    <a href="{% url 'room_overview' %}?room_id={{ booking.room.room_id }}" 
-                       class="btn btn-outline" 
-                       style="padding:6px 12px; font-size:0.85rem;">
-                        View Room
-                    </a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5" style="text-align:center; padding:40px; color:var(--text-dim);">
-                    No past bookings yet.
+                    <a href="{% url 'room_overview' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    {% if invitations %}
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 12px;">My Invitations</h3>
+        <div style="display: grid; gap: 12px;">
+            {% for invitation in invitations %}
+            <div class="card" style="padding: 14px;">
+                <strong>{{ invitation.booking.room.name }}</strong>
+                <div style="color: var(--text-dim); font-size: 0.9rem; margin-top: 4px;">
+                    {{ invitation.booking.booking_datetime|date:"M d, Y H:i" }} • {{ invitation.get_status_display }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 80px 20px; color: var(--text-dim);">
+        <div style="font-size: 3.8rem; margin-bottom: 15px;">📅</div>
+        <p>No bookings found in this tab.</p>
+        <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="margin-top: 15px;">Create your first booking</a>
+    </div>
 
 </div>
 
@@ -123,57 +90,47 @@
             btn.classList.toggle('active', i === tabIndex);
         });
 
-        const upcomingBody = document.getElementById('upcoming-body');
-        const pastBody = document.getElementById('past-body');
-
+        const upcoming = document.getElementById('upcoming-body');
+        const past = document.getElementById('past-body');
+        
         if (tabIndex === 0) {
-            upcomingBody.style.display = 'table-row-group';
-            pastBody.style.display = 'none';
+            upcoming.style.display = 'table-row-group';
+            past.style.display = 'none';
         } else {
-            upcomingBody.style.display = 'none';
-            pastBody.style.display = 'table-row-group';
+            upcoming.style.display = 'none';
+            past.style.display = 'table-row-group';
+        }
+        
+        checkEmptyState();
+    }
+
+    function cancelBooking(btn) {
+        if (confirm("Cancel this booking?\nThis action cannot be undone.")) {
+            const row = btn.closest('tr');
+            row.style.transition = 'all 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => {
+                row.remove();
+                checkEmptyState();
+            }, 300);
         }
     }
 
-    function cancelBooking(bookingId) {
-        if (!confirm("Cancel this booking?\nThis action cannot be undone.")) return;
-
-        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-        fetch(`/bookings/cancel/${bookingId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': csrftoken,
-                'Content-Type': 'application/json'
-            },
-            credentials: 'same-origin'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message || 'Booking cancelled successfully!');
-                location.reload();
-            } else {
-                alert(data.error || 'Failed to cancel booking.');
-            }
-        })
-        .catch(error => {
-            console.error('Cancel error:', error);
-            alert('Error cancelling booking. Check console for details.');
-        });
+    function checkEmptyState() {
+        const activeBody = document.getElementById('upcoming-body').style.display !== 'none' 
+            ? document.getElementById('upcoming-body') 
+            : document.getElementById('past-body');
+        
+        document.getElementById('empty-state').style.display = 
+            activeBody.children.length === 0 ? 'block' : 'none';
     }
 
     function toggleCalendarView() {
-        alert("📅 Calendar view coming soon.");
+        alert("📅 Full calendar view would open here (FullCalendar or django-calendars ready for production)");
     }
 
-    // Auto switch to Past tab if no upcoming bookings
     window.onload = () => {
-        const upcomingCount = {{ upcoming_bookings|length }};
-        if (upcomingCount === 0) {
-            switchTab(1);
-        }
+        checkEmptyState();
     };
 </script>
-
 {% endblock %}
