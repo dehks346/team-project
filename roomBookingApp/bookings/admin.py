@@ -41,36 +41,43 @@ class RecordAdmin(admin.ModelAdmin):
     list_display = ['record_number', 'action', 'timestamp', 'booking']
     list_filter = ['action']
 
-
 @admin.register(Organisation)
 class OrganisationAdmin(admin.ModelAdmin):
-    list_display = ['organisation_id', 'name', 'email_address', 'phone_number', 'number_of_users', 'number_of_rooms',
-                    'fee']
+    list_display = [
+        'organisation_id',
+        'name',
+        'email_address',
+        'phone_number',
+        'number_of_rooms',
+        'fee',
+        'user_count',
+    ]
     list_filter = ['created_at']
     search_fields = ['name', 'email_address', 'unique_access_code']
     readonly_fields = ['created_at', 'updated_at']
 
     fieldsets = (
         ('Organisation Info', {
-            'fields': ('name', 'email_address', 'password', 'unique_access_code', 'phone_number', 'address')
+            'fields': ('name', 'email_address', 'unique_access_code', 'phone_number', 'address')
         }),
         ('Billing', {
             'fields': ('fee',)
         }),
         ('Stats', {
-            'fields': ('number_of_users', 'number_of_rooms')
+            'fields': ('number_of_rooms',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
-        })
+        }),
     )
 
 # Handle UserProfile with User
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
-    fields = ['organisation', 'name', 'email', 'phone_number']
+    fields = ['organisation', 'phone_number']
+
 
 class CustomUserAdmin(UserAdmin):
     inlines = [UserProfileInline]
@@ -78,11 +85,12 @@ class CustomUserAdmin(UserAdmin):
 
     def get_organisation(self, obj):
         try:
-            return obj.userprofile.organisation.name
-        except:
+            return obj.userprofile.organisation.name if obj.userprofile.organisation else "-"
+        except UserProfile.DoesNotExist:
             return "-"
 
     get_organisation.short_description = 'Organisation'
-# Unregister default User and register custom
+
+
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
