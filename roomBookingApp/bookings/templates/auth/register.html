@@ -67,7 +67,9 @@
                 <select name="role" required
                         style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;">
                     <option value="user">User (Book rooms &amp; use face access)</option>
+                    {% if request.user.is_authenticated and request.user.is_superuser %}
                     <option value="admin">Admin (Manage users &amp; rooms)</option>
+                    {% endif %}
                 </select>
             </div>
 
