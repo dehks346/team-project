@@ -50,7 +50,7 @@ class OrganisationAdmin(admin.ModelAdmin):
         'phone_number',
         'number_of_rooms',
         'fee',
-        'user_count',
+        'number_of_users',
     ]
     list_filter = ['created_at']
     search_fields = ['name', 'email_address', 'unique_access_code']

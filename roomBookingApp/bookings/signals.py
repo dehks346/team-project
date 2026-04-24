@@ -6,8 +6,17 @@ from .models import UserProfile
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        UserProfile.objects.create(user=instance)
+        UserProfile.objects.get_or_create(
+            user=instance,
+            defaults={
+                'name': instance.get_full_name().strip() or instance.username,
+                'email': instance.email or f'{instance.username}@example.com',
+                'phone_number': '',
+            },
+        )
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
-    instance.userprofile.save()
+    profile = UserProfile.objects.filter(user=instance).first()
+    if profile is not None:
+        profile.save()
