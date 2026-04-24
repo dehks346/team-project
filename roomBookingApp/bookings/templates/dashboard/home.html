@@ -11,15 +11,15 @@
         
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; max-width: 420px;">
             <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
-                <div style="font-size: 1.8rem; font-weight: 600; color: var(--primary);">3</div>
+                <div style="font-size: 1.8rem; font-weight: 600; color: var(--primary);">{{ bookings_today_count }}</div>
                 <small style="color: var(--text-dim);">Bookings Today</small>
             </div>
             <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
-                <div style="font-size: 1.8rem; font-weight: 600; color: var(--success);">12</div>
+                <div style="font-size: 1.8rem; font-weight: 600; color: var(--success);">{{ rooms_available_count }}</div>
                 <small style="color: var(--text-dim);">Rooms Available</small>
             </div>
             <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
-                <div style="font-size: 1.8rem; font-weight: 600; color: var(--danger);">2</div>
+                <div style="font-size: 1.8rem; font-weight: 600; color: var(--danger);">{{ pending_invites_count }}</div>
                 <small style="color: var(--text-dim);">Pending Invites</small>
             </div>
         </div>
@@ -42,21 +42,17 @@
                 </tr>
             </thead>
             <tbody>
+                {% for booking in today_bookings %}
                 <tr>
-                    <td><strong>Conference Room A</strong></td>
-                    <td>09:00 – 10:30</td>
-                    <td><span class="badge badge-success">Confirmed</span></td>
+                    <td><strong>{{ booking.room.name }}</strong></td>
+                    <td>{{ booking.booking_datetime|date:"H:i" }}</td>
+                    <td><span class="badge badge-success">{{ booking.get_status_display }}</span></td>
                 </tr>
+                {% empty %}
                 <tr>
-                    <td><strong>Lab 3</strong></td>
-                    <td>11:00 – 12:00</td>
-                    <td><span class="badge badge-success">Confirmed</span></td>
+                    <td colspan="3" style="color: var(--text-dim);">No bookings today.</td>
                 </tr>
-                <tr>
-                    <td><strong>Meeting Pod B</strong></td>
-                    <td>14:00 – 15:00</td>
-                    <td><span class="badge badge-success">Confirmed</span></td>
-                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -75,21 +71,17 @@
                 </tr>
             </thead>
             <tbody>
+                {% for booking in upcoming_week_bookings %}
                 <tr>
-                    <td><strong>Conference Room A</strong></td>
-                    <td>Mar 7</td>
-                    <td>10:00 – 11:00</td>
+                    <td><strong>{{ booking.room.name }}</strong></td>
+                    <td>{{ booking.booking_datetime|date:"M d" }}</td>
+                    <td>{{ booking.booking_datetime|date:"H:i" }}</td>
                 </tr>
+                {% empty %}
                 <tr>
-                    <td><strong>Lab 3</strong></td>
-                    <td>Mar 8</td>
-                    <td>13:30 – 15:00</td>
+                    <td colspan="3" style="color: var(--text-dim);">No upcoming bookings this week.</td>
                 </tr>
-                <tr>
-                    <td><strong>Meeting Pod B</strong></td>
-                    <td>Mar 10</td>
-                    <td>09:30 – 10:30</td>
-                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -97,30 +89,20 @@
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="margin: 0;">Rooms You Manage</h3>
-            <span class="badge badge-success">3 Active</span>
+            <span class="badge badge-success">{{ managed_rooms|length }} Active</span>
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px;">
+            {% for room in managed_rooms %}
             <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <strong>Conference Room A</strong><br>
-                    <small style="color: var(--text-dim);">Capacity 12 • Face Rec: Required</small>
+                    <strong>{{ room.name }}</strong><br>
+                    <small style="color: var(--text-dim);">Capacity {{ room.capacity }} • Face Rec: {% if room.is_face_required %}Required{% else %}Optional{% endif %}</small>
                 </div>
                 <span class="badge badge-success">Online</span>
             </div>
-            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong>Lab 3</strong><br>
-                    <small style="color: var(--text-dim);">Capacity 8 • Face Rec: Required</small>
-                </div>
-                <span class="badge badge-success">Online</span>
-            </div>
-            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong>Meeting Pod B</strong><br>
-                    <small style="color: var(--text-dim);">Capacity 4 • Face Rec: Optional</small>
-                </div>
-                <span class="badge badge-success">Online</span>
-            </div>
+            {% empty %}
+            <div style="color: var(--text-dim);">No active rooms available.</div>
+            {% endfor %}
         </div>
     </div>
 
@@ -129,18 +111,14 @@
             <h3 style="margin: 0;">Rooms You Can Access</h3>
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px;">
+            {% for room in accessible_rooms %}
             <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <div><strong>Server Room</strong></div>
+                <div><strong>{{ room.name }}</strong></div>
                 <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
             </div>
-            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <div><strong>Creative Studio</strong></div>
-                <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
-            </div>
-            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <div><strong>Breakout Room 1</strong></div>
-                <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
-            </div>
+            {% empty %}
+            <div style="color: var(--text-dim);">No rooms available.</div>
+            {% endfor %}
         </div>
     </div>
 
@@ -167,15 +145,19 @@
     <div class="card">
         <h3 style="margin-bottom: 15px;">Pending Invites</h3>
         <div style="display: flex; flex-direction: column; gap: 12px;">
+            {% for invite in pending_invites %}
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;">
                 <div>
-                    <strong>Team Sync – Conference Room A</strong><br>
-                    <small style="color: var(--text-dim);">Tomorrow 10:00 • Invited by Sarah</small>
+                    <strong>{{ invite.booking.room.name }}</strong><br>
+                    <small style="color: var(--text-dim);">{{ invite.booking.booking_datetime|date:"M d, H:i" }} • Pending response</small>
                 </div>
                 <div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="btn btn-success" style="padding: 6px 12px; font-size: 0.85rem;">Accept</button>
+                    <a href="{% url 'booking_invitation' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Review</a>
                 </div>
             </div>
+            {% empty %}
+            <div style="color: var(--text-dim);">No pending invites.</div>
+            {% endfor %}
         </div>
     </div>
 
@@ -186,18 +168,24 @@
                 <tr><th>Room</th><th>Person</th><th>Result</th><th>Time</th></tr>
             </thead>
             <tbody>
+                {% for attempt in recent_access_attempts %}
                 <tr>
-                    <td>Conference Room A</td>
-                    <td>Alex Chen</td>
-                    <td><span class="badge badge-success">Granted</span></td>
-                    <td>Just now</td>
+                    <td>{{ attempt.room.name }}</td>
+                    <td>{{ attempt.user.name }}</td>
+                    <td>
+                        {% if attempt.result == 'GRANTED' %}
+                        <span class="badge badge-success">Granted</span>
+                        {% else %}
+                        <span class="badge badge-danger">Denied</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ attempt.access_datetime|timesince }} ago</td>
                 </tr>
+                {% empty %}
                 <tr>
-                    <td>Lab 3</td>
-                    <td>Unknown</td>
-                    <td><span class="badge badge-danger">Denied</span></td>
-                    <td>4 min ago</td>
+                    <td colspan="4" style="color: var(--text-dim);">No access attempts recorded.</td>
                 </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>

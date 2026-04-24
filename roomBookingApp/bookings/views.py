@@ -16,7 +16,7 @@ import io
 import json
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import cv2
 import numpy as np
 from pathlib import Path
@@ -24,7 +24,7 @@ from django.utils.dateparse import parse_date, parse_time
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.http import JsonResponse
-from .models import Room, UserProfile, Booking, BookingInvitation
+from .models import Room, UserProfile, Booking, BookingInvitation, Access
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -1076,6 +1076,42 @@ def custom_logout(request):
 class HomeView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'dashboard/home.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user_profile = _get_or_create_user_profile(self.request.user)
+        now = timezone.now()
+        today = timezone.localdate()
+        week_end = today + timedelta(days=7)
+
+        user_bookings = Booking.objects.filter(user=user_profile).select_related('room')
+        today_bookings = user_bookings.filter(booking_datetime__date=today).order_by('booking_datetime')
+        upcoming_week_bookings = user_bookings.filter(
+            booking_datetime__date__gt=today,
+            booking_datetime__date__lte=week_end,
+        ).order_by('booking_datetime')
+
+        user_invites = BookingInvitation.objects.filter(
+            models.Q(invited_user=self.request.user) | models.Q(invited_email__iexact=self.request.user.email)
+        ).select_related('booking', 'booking__room')
+
+        pending_invites = user_invites.filter(status='PENDING').order_by('-created_at')
+
+        active_rooms = list(Room.objects.filter(is_active=True).order_by('room_id'))
+        available_rooms_count = sum(1 for room in active_rooms if room.is_available)
+
+        context['bookings_today_count'] = today_bookings.count()
+        context['rooms_available_count'] = available_rooms_count
+        context['pending_invites_count'] = pending_invites.count()
+
+        context['today_bookings'] = today_bookings[:5]
+        context['upcoming_week_bookings'] = upcoming_week_bookings[:5]
+        context['managed_rooms'] = active_rooms[:5]
+        context['accessible_rooms'] = active_rooms[:5]
+        context['pending_invites'] = pending_invites[:5]
+        context['recent_access_attempts'] = Access.objects.select_related('room', 'user').order_by('-access_datetime')[:5]
+        context['now'] = now
+        return context
+
 class LiveFeedView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'live_system/live_feed.html'
 
@@ -1122,7 +1158,7 @@ class RoomListView(DebugLoginRequiredMixin, TemplateView):
 class RoomOverviewView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_overview.html'
 
-class RoomCreationView(DebugLoginRequiredMixin, TemplateView):
+class RoomCreationView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_creation.html'
 
     def post(self, request, *args, **kwargs):
@@ -1171,10 +1207,10 @@ class RoomCreationView(DebugLoginRequiredMixin, TemplateView):
 class RoomEditView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_edit.html'
 
-class RoomPermissionsView(DebugLoginRequiredMixin, TemplateView):
+class RoomPermissionsView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_permissions.html'
 
-class RoomLogView(DebugLoginRequiredMixin, TemplateView):
+class RoomLogView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_log.html'
 
 
@@ -1269,7 +1305,15 @@ class MyBookingsView(DebugLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user_profile = UserProfile.objects.filter(user=self.request.user).first()
-        context['bookings'] = Booking.objects.filter(user=user_profile).order_by('-booking_datetime') if user_profile else Booking.objects.none()
+        if user_profile:
+            all_bookings = Booking.objects.filter(user=user_profile).select_related('room').order_by('-booking_datetime')
+        else:
+            all_bookings = Booking.objects.none()
+
+        now = timezone.now()
+        context['bookings'] = all_bookings
+        context['upcoming_bookings'] = all_bookings.filter(booking_datetime__gte=now)
+        context['past_bookings'] = all_bookings.filter(booking_datetime__lt=now)
         context['invitations'] = BookingInvitation.objects.filter(
             models.Q(invited_user=self.request.user) | models.Q(invited_email__iexact=self.request.user.email)
         ).order_by('-created_at')

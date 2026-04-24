@@ -19,12 +19,11 @@
             <a href="{% url 'booking_creation' %}" class="btn btn-primary" style="padding: 14px 24px;">
                 📅 Create Booking
             </a>
-            <a href="{% url 'room_permissions' %}" class="btn btn-outline" style="padding: 14px 24px;">
-                👥 Manage Access
-            </a>
+            {% if user.is_superuser or request.session.debug_no_login %}
             <a href="{% url 'room_log' %}" class="btn btn-outline" style="padding: 14px 24px;">
                 📋 View Audit Log
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -112,7 +111,9 @@
                     <div>❌ Unknown face denied • 10:15</div>
                     <div>📅 Booking created by Sarah • Yesterday</div>
                 </div>
+                {% if user.is_superuser or request.session.debug_no_login %}
                 <a href="{% url 'room_log' %}" class="btn btn-outline" style="width: 100%; margin-top: 15px; font-size: 0.85rem;">View Full Audit Log →</a>
+                {% endif %}
             </div>
 
         </div>

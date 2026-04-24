@@ -31,47 +31,32 @@
             </tr>
         </thead>
         <tbody id="upcoming-body">
+            {% for booking in upcoming_bookings %}
             <tr data-status="upcoming">
-                <td><strong>Conference Room A</strong></td>
-                <td>Today, Mar 7 • 14:00 – 15:30</td>
-                <td>1h 30m</td>
-                <td><span class="badge badge-success">Confirmed</span></td>
+                <td><strong>{{ booking.room.name }}</strong></td>
+                <td>{{ booking.booking_datetime|date:"M d, Y • H:i" }}</td>
+                <td>{{ booking.duration_minutes }}m</td>
+                <td><span class="badge badge-success">{{ booking.get_status_display }}</span></td>
                 <td>
                     <a href="{% url 'booking_edit' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
                     <button onclick="cancelBooking(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Cancel</button>
                 </td>
             </tr>
-            <tr data-status="upcoming">
-                <td><strong>Lab 3</strong></td>
-                <td>Mar 8 • 09:00 – 10:00</td>
-                <td>1h</td>
-                <td><span class="badge badge-success">Confirmed</span></td>
-                <td>
-                    <a href="{% url 'booking_edit' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
-                    <button onclick="cancelBooking(this)" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">Cancel</button>
-                </td>
-            </tr>
+            {% endfor %}
         </tbody>
 
         <tbody id="past-body" style="display: none;">
+            {% for booking in past_bookings %}
             <tr data-status="past">
-                <td><strong>Meeting Pod B</strong></td>
-                <td>Feb 28 • 11:00 – 12:30</td>
-                <td>1h 30m</td>
-                <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">Completed</span></td>
+                <td><strong>{{ booking.room.name }}</strong></td>
+                <td>{{ booking.booking_datetime|date:"M d, Y • H:i" }}</td>
+                <td>{{ booking.duration_minutes }}m</td>
+                <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">{{ booking.get_status_display }}</span></td>
                 <td>
                     <a href="{% url 'room_overview' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
                 </td>
             </tr>
-            <tr data-status="past">
-                <td><strong>Creative Studio</strong></td>
-                <td>Feb 25 • 14:00 – 14:45</td>
-                <td>45m</td>
-                <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">Completed</span></td>
-                <td>
-                    <a href="{% url 'room_overview' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
-                </td>
-            </tr>
+            {% endfor %}
         </tbody>
     </table>
 
