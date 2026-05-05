@@ -29,4 +29,20 @@
       "updated_at": "2026-02-19T00:00:00Z"
     }
   }
+  ,
+  {
+    "model": "bookings.organisation",
+    "pk": 3,
+    "fields": {
+      "name": "Leeds Beckett University",
+      "email_address": "admin@leedsbeckett.ac.uk",
+      "unique_access_code": "LEEDS2026",
+      "phone_number": "+44 113 812 3000",
+      "address": "City Campus, Leeds, LS1 3HE, United Kingdom",
+      "fee": "0.00",
+      "number_of_rooms": 4,
+      "created_at": "2026-02-19T00:00:00Z",
+      "updated_at": "2026-02-19T00:00:00Z"
+    }
+  }
 ]

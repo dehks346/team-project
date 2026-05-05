@@ -20,7 +20,7 @@
                 <option value="facerec">Face Recognition Required</option>
             </select>
 
-            {% if user.is_superuser or request.session.debug_no_login %}
+            {% if user.is_superuser or request.session.is_org_user or request.session.debug_no_login %}
             <a href="{% url 'room_creation' %}" class="btn btn-primary" style="padding: 12px 20px;">
                 + New Room
             </a>

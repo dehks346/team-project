@@ -326,6 +326,10 @@ class Access(models.Model):
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
+    # Skip profile creation while loading fixtures (`loaddata`) to avoid conflicts.
+    if kwargs.get('raw', False):
+        return
+
     if created and not hasattr(instance, 'userprofile'):
         UserProfile.objects.create(
             user=instance,

@@ -31,7 +31,18 @@
                 <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Username or email</label>
                 <input type="text" name="username" value="{{ request.POST.username|default:'' }}" required 
                        style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;"
-                       placeholder="you@company.com">
+                       placeholder="you@university.ac.uk">
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Account type</label>
+                <select name="account_type"
+                        style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;">
+                    <option value="regular" {% if request.POST.account_type == 'regular' or not request.POST.account_type %}selected{% endif %}>Regular user</option>
+                    <option value="organisation" {% if request.POST.account_type == 'organisation' %}selected{% endif %}>Organisation user</option>
+                    <option value="admin" {% if request.POST.account_type == 'admin' %}selected{% endif %}>Admin</option>
+                </select>
+                <small style="display: block; color: var(--text-dim); margin-top: 6px;">Use Organisation user when logging in with your university/company member account.</small>
             </div>
 
             <div style="margin-bottom: 18px;">

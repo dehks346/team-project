@@ -32,4 +32,44 @@
       "created_at": "2026-02-18T22:30:00Z"
     }
   }
+  ,
+  {
+    "model": "bookings.Room",
+    "pk": 4,
+    "fields": {
+      "name": "Lecture Theatre 1",
+      "location": "Headingley Campus, Lecture Theatre 1",
+      "capacity": 120,
+      "room_type": "TRAIN",
+      "is_active": true,
+      "organisation": 3,
+      "created_at": "2026-02-19T08:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.Room",
+    "pk": 5,
+    "fields": {
+      "name": "Seminar Room 2",
+      "location": "City Campus, Building B - Seminar Room 2",
+      "capacity": 30,
+      "room_type": "MEET",
+      "is_active": true,
+      "organisation": 3,
+      "created_at": "2026-02-19T08:00:00Z"
+    }
+  },
+  {
+    "model": "bookings.Room",
+    "pk": 6,
+    "fields": {
+      "name": "Computer Lab 12",
+      "location": "Beckett Park Campus, Computer Lab 12",
+      "capacity": 25,
+      "room_type": "CONF",
+      "is_active": true,
+      "organisation": 3,
+      "created_at": "2026-02-19T08:00:00Z"
+    }
+  }
 ]

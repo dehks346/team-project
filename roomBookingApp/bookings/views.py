@@ -24,7 +24,7 @@ from django.utils.dateparse import parse_date, parse_time
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.http import JsonResponse
-from .models import Room, UserProfile, Booking, BookingInvitation, Access
+from .models import Room, UserProfile, Booking, BookingInvitation, Access, Organisation
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -99,6 +99,36 @@ def _get_or_create_user_profile(user):
     return profile
 
 
+def _get_user_profile(user):
+    if not user or not user.is_authenticated:
+        return None
+    return UserProfile.objects.select_related('organisation').filter(user=user).first()
+
+
+def _get_user_organisation(user):
+    profile = _get_user_profile(user)
+    return profile.organisation if profile and profile.organisation_id else None
+
+
+def _is_organisation_user(user):
+    return _get_user_organisation(user) is not None
+
+
+def _room_queryset_for_user(user, active_only=True):
+    rooms = Room.objects.select_related('organisation').order_by('room_id')
+    if active_only:
+        rooms = rooms.filter(is_active=True)
+
+    if not user or not user.is_authenticated or user.is_superuser:
+        return rooms
+
+    user_org = _get_user_organisation(user)
+    if user_org is not None:
+        return rooms.filter(organisation=user_org)
+
+    return rooms.filter(organisation__isnull=True)
+
+
 def _parse_equipment(raw_equipment):
     if not raw_equipment:
         return []
@@ -139,6 +169,7 @@ class WebsiteUserCreationForm(UserCreationForm):
     email = forms.EmailField(required=True)
     role = forms.ChoiceField(choices=ROLE_CHOICES)
     username = forms.CharField(required=False, widget=forms.HiddenInput())
+    organisation = forms.ModelChoiceField(queryset=Organisation.objects.all(), required=False)
 
     class Meta(UserCreationForm.Meta):
         model = User
@@ -160,6 +191,33 @@ class WebsiteUserCreationForm(UserCreationForm):
             candidate = f"{base_username}{suffix}"
 
         return candidate
+
+    def _extract_email_domain(self, email):
+        value = (email or '').strip().lower()
+        if '@' not in value:
+            return ''
+        return value.split('@', 1)[1].strip()
+
+    def _organisation_for_email(self, email):
+        domain = self._extract_email_domain(email)
+        if not domain:
+            return None
+
+        organisations = Organisation.objects.all()
+
+        # First pass: exact domain match.
+        for organisation in organisations:
+            org_domain = self._extract_email_domain(organisation.email_address)
+            if org_domain and org_domain == domain:
+                return organisation
+
+        # Second pass: support subdomains like dept.company.com -> company.com.
+        for organisation in organisations:
+            org_domain = self._extract_email_domain(organisation.email_address)
+            if org_domain and domain.endswith(f".{org_domain}"):
+                return organisation
+
+        return None
 
     def clean_email(self):
         email = (self.cleaned_data.get('email') or '').strip().lower()
@@ -211,20 +269,56 @@ class WebsiteUserCreationForm(UserCreationForm):
         if commit:
             user.save()
 
+        # Ensure UserProfile exists (signals may have created one) and update organisation
+        profile_defaults = {
+            'name': full_name,
+            'email': user.email,
+            'phone_number': ''
+        }
+        org = self.cleaned_data.get('organisation') or self._organisation_for_email(user.email)
+        profile, _ = UserProfile.objects.get_or_create(user=user, defaults=profile_defaults)
+        if org:
+            profile.organisation = org
+        # update name/email if provided
+        profile.name = profile_defaults['name']
+        profile.email = profile_defaults['email']
+        profile.save()
+
         return user
 
 
 class EmailOrUsernameAuthenticationForm(AuthenticationForm):
+    ACCOUNT_TYPE_CHOICES = [
+        ('regular', 'Regular user'),
+        ('organisation', 'Organisation user'),
+        ('admin', 'Admin'),
+    ]
+
+    account_type = forms.ChoiceField(choices=ACCOUNT_TYPE_CHOICES, required=False)
+
     def clean(self):
         username_or_email = (self.cleaned_data.get('username') or '').strip()
-        password = self.cleaned_data.get('password')
 
         if username_or_email and '@' in username_or_email:
             matched_user = User.objects.filter(email__iexact=username_or_email).first()
             if matched_user is not None:
                 self.cleaned_data['username'] = matched_user.get_username()
 
-        return super().clean()
+        cleaned_data = super().clean()
+        account_type = (self.data.get('account_type') or 'regular').strip().lower()
+        user = self.get_user()
+
+        if user is None:
+            return cleaned_data
+
+        if account_type == 'admin' and not user.is_superuser:
+            raise forms.ValidationError('This account is not an admin account.')
+
+        if account_type == 'organisation' and not _is_organisation_user(user):
+            raise forms.ValidationError('This account is not linked to an organisation profile.')
+
+        cleaned_data['account_type'] = account_type
+        return cleaned_data
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FACE_RECOGNITION_DIR = PROJECT_ROOT / "Face_Recognition"
@@ -735,6 +829,9 @@ def complete_face_login(request):
 
     login(request, matched_user, backend='django.contrib.auth.backends.ModelBackend')
     request.session['face_login_verified'] = True
+    matched_profile = _get_user_profile(matched_user)
+    request.session['is_org_user'] = bool(matched_profile and matched_profile.organisation_id)
+    request.session['organisation_name'] = matched_profile.organisation.name if matched_profile and matched_profile.organisation_id else ''
 
     pending_room = request.session.get(FACE_BOOKING_PENDING_ROOM_SESSION_KEY)
     booking_redirect_url = request.session.get(FACE_BOOKING_REDIRECT_SESSION_KEY)
@@ -1016,6 +1113,11 @@ class AdminRequiredMixin(UserPassesTestMixin):
 
 class DebugLoginRequiredMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            profile = _get_user_profile(request.user)
+            request.session['is_org_user'] = bool(profile and profile.organisation_id)
+            request.session['organisation_name'] = profile.organisation.name if profile and profile.organisation_id else ''
+
         if request.user.is_authenticated or request.session.get('debug_no_login', False):
             return super(LoginRequiredMixin, self).dispatch(request, *args, **kwargs)
         else:
@@ -1028,9 +1130,33 @@ class DebugAdminRequiredMixin(AdminRequiredMixin):
         else:
             return self.handle_no_permission()
 
+
+class OrganisationOrAdminRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_superuser or _is_organisation_user(self.request.user)
+
+
+class DebugOrganisationOrAdminRequiredMixin(OrganisationOrAdminRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if request.session.get('debug_no_login', False) or self.test_func():
+            return super(UserPassesTestMixin, self).dispatch(request, *args, **kwargs)
+        return self.handle_no_permission()
+
 class CustomLoginView(LoginView):
     template_name = 'auth/login.html'
     authentication_form = EmailOrUsernameAuthenticationForm
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        profile = _get_user_profile(self.request.user)
+        self.request.session['is_org_user'] = bool(profile and profile.organisation_id)
+        self.request.session['organisation_name'] = profile.organisation.name if profile and profile.organisation_id else ''
+        return response
+
+    def form_invalid(self, form):
+        for error in form.non_field_errors():
+            messages.error(self.request, error)
+        return super().form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy(DASHBOARD_REDIRECT_URL_NAME)
@@ -1049,7 +1175,16 @@ class CustomRegisterView(CreateView):
         self.object = form.save()
         if not self.request.user.is_authenticated:
             login(self.request, self.object)
-        messages.success(self.request, 'Account created successfully.')
+
+        active_user = self.request.user if self.request.user.is_authenticated else self.object
+        profile = _get_user_profile(active_user)
+        self.request.session['is_org_user'] = bool(profile and profile.organisation_id)
+        self.request.session['organisation_name'] = profile.organisation.name if profile and profile.organisation_id else ''
+
+        if profile and profile.organisation_id:
+            messages.success(self.request, f'Account created successfully under {profile.organisation.name}.')
+        else:
+            messages.success(self.request, 'Account created successfully.')
         return redirect(self.get_success_url())
 
     def form_invalid(self, form):
@@ -1057,6 +1192,11 @@ class CustomRegisterView(CreateView):
             for error in errors:
                 messages.error(self.request, error)
         return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['organisations'] = Organisation.objects.all().order_by('name')
+        return context
 
 class CustomPasswordResetView(PasswordResetView):
     template_name = 'auth/password_reset.html'
@@ -1071,6 +1211,8 @@ class CustomPasswordChangeView(DebugLoginRequiredMixin, PasswordChangeView):
 
 def custom_logout(request):
     logout(request)
+    request.session.pop('is_org_user', None)
+    request.session.pop('organisation_name', None)
     return redirect('login')
 
 class HomeView(DebugLoginRequiredMixin, TemplateView):
@@ -1096,7 +1238,7 @@ class HomeView(DebugLoginRequiredMixin, TemplateView):
 
         pending_invites = user_invites.filter(status='PENDING').order_by('-created_at')
 
-        active_rooms = list(Room.objects.filter(is_active=True).order_by('room_id'))
+        active_rooms = list(_room_queryset_for_user(self.request.user, active_only=True))
         available_rooms_count = sum(1 for room in active_rooms if room.is_available)
 
         context['bookings_today_count'] = today_bookings.count()
@@ -1122,6 +1264,14 @@ class UserProfileView(DebugLoginRequiredMixin, DetailView):
     def get_object(self):
         return self.request.user
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = _get_or_create_user_profile(self.request.user)
+        context['profile'] = profile
+        context['bookings_count'] = Booking.objects.filter(user=profile).count()
+        context['is_organisation_user'] = bool(profile.organisation_id)
+        return context
+
 class UserEditView(DebugLoginRequiredMixin, UpdateView):
     model = User
     fields = ['first_name', 'last_name', 'email'] 
@@ -1142,24 +1292,41 @@ class UserNotificationsView(DebugLoginRequiredMixin, TemplateView):
         ).order_by('-created_at')
         return context
 
-class UserManagementView(DebugAdminRequiredMixin, ListView):
+class UserManagementView(DebugOrganisationOrAdminRequiredMixin, ListView):
     model = User
     template_name = 'user_management/user_management.html'
     context_object_name = 'users'
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('userprofile__organisation').order_by('first_name', 'last_name', 'username')
+        if self.request.user.is_superuser:
+            return queryset
+
+        organisation = _get_user_organisation(self.request.user)
+        if organisation is None:
+            return queryset.none()
+
+        return queryset.filter(userprofile__organisation=organisation)
 
 class RoomListView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_list.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['rooms'] = Room.objects.filter(is_active=True).order_by('room_id')
+        context['rooms'] = _room_queryset_for_user(self.request.user, active_only=True)
         return context
 
 class RoomOverviewView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_overview.html'
 
-class RoomCreationView(DebugAdminRequiredMixin, TemplateView):
+class RoomCreationView(DebugOrganisationOrAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_creation.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['organisations'] = Organisation.objects.all().order_by('name')
+        context['current_organisation'] = _get_user_organisation(self.request.user)
+        return context
 
     def post(self, request, *args, **kwargs):
         room_name = (request.POST.get('name') or '').strip()
@@ -1181,6 +1348,20 @@ class RoomCreationView(DebugAdminRequiredMixin, TemplateView):
             messages.error(request, 'Room name and location are required.')
             return self.get(request, *args, **kwargs)
 
+        room_organisation = None
+        if request.user.is_superuser:
+            organisation_id = (request.POST.get('organisation') or '').strip()
+            if organisation_id:
+                room_organisation = Organisation.objects.filter(pk=organisation_id).first()
+                if room_organisation is None:
+                    messages.error(request, 'Selected organisation does not exist.')
+                    return self.get(request, *args, **kwargs)
+        else:
+            room_organisation = _get_user_organisation(request.user)
+            if room_organisation is None and not request.session.get('debug_no_login', False):
+                messages.error(request, 'You must belong to an organisation to create rooms.')
+                return redirect('room_list')
+
         try:
             capacity_value = int(capacity)
         except (TypeError, ValueError):
@@ -1198,7 +1379,7 @@ class RoomCreationView(DebugAdminRequiredMixin, TemplateView):
             opening_time=opening_time,
             closing_time=closing_time,
             photo_name=photo_name,
-            organisation=None,
+            organisation=room_organisation,
         )
 
         messages.success(request, f'Room "{room_name}" created successfully.')
@@ -1231,8 +1412,13 @@ class BookingCreationView(DebugLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         room_id = self.request.GET.get('room')
-        context['rooms'] = Room.objects.filter(is_active=True).order_by('room_id')
-        context['selected_room'] = _get_room_by_id(room_id)
+        context['rooms'] = _room_queryset_for_user(self.request.user, active_only=True)
+
+        selected_room = _get_room_by_id(room_id)
+        if selected_room and not _room_queryset_for_user(self.request.user, active_only=True).filter(room_id=selected_room.room_id).exists():
+            selected_room = None
+
+        context['selected_room'] = selected_room
         return context
 
     def dispatch(self, request, *args, **kwargs):
@@ -1256,6 +1442,10 @@ class BookingCreationView(DebugLoginRequiredMixin, TemplateView):
         room = _get_room_by_id(room_id)
         if room is None:
             messages.error(request, 'Please select a valid room.')
+            return redirect('booking_creation')
+
+        if not _room_queryset_for_user(request.user, active_only=True).filter(room_id=room.room_id).exists():
+            messages.error(request, 'You do not have access to this room.')
             return redirect('booking_creation')
 
         user_profile = _get_or_create_user_profile(request.user)
@@ -1356,6 +1546,37 @@ class BookingInvitationRespondView(DebugLoginRequiredMixin, View):
 
 class FaceEnrollmentView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'face_recognition/face_enrollment.html'
+
+
+class OrganisationProfileView(DebugOrganisationOrAdminRequiredMixin, TemplateView):
+    template_name = 'user_management/organisation_profile.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        organisation = _get_user_organisation(self.request.user)
+        if self.request.user.is_superuser:
+            organisation_id = (self.request.GET.get('organisation') or '').strip()
+            if organisation_id:
+                organisation = Organisation.objects.filter(pk=organisation_id).first()
+
+        context['organisation'] = organisation
+        context['all_organisations'] = Organisation.objects.all().order_by('name') if self.request.user.is_superuser else []
+
+        if organisation is None:
+            context['organisation_users'] = UserProfile.objects.none()
+            context['organisation_rooms'] = Room.objects.none()
+            context['organisation_bookings_count'] = 0
+            return context
+
+        organisation_users = UserProfile.objects.filter(organisation=organisation).select_related('user').order_by('name')
+        organisation_rooms = Room.objects.filter(organisation=organisation).order_by('name')
+        organisation_bookings_count = Booking.objects.filter(room__organisation=organisation).count()
+
+        context['organisation_users'] = organisation_users
+        context['organisation_rooms'] = organisation_rooms[:8]
+        context['organisation_bookings_count'] = organisation_bookings_count
+        return context
 
 class FaceVerificationView(TemplateView):
     template_name = 'face_recognition/face_verification.html'

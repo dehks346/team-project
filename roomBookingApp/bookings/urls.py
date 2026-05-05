@@ -9,7 +9,8 @@ from .views import (
     AdminSettingsView, ReportsView, Error403View, Error404View, Error500View,
     PrivacyBiometricConsentView, ToggleDebugView, video_stream, get_face_status, toggle_face_detection,
     enrollment_stream, capture_face_image, verification_stream, start_face_verification,
-    set_confidence_threshold, complete_face_login, BookingFaceGateView, BookingInvitationRespondView
+    set_confidence_threshold, complete_face_login, BookingFaceGateView, BookingInvitationRespondView,
+    OrganisationProfileView
 )
 
 urlpatterns = [
@@ -23,6 +24,7 @@ urlpatterns = [
     path('', HomeView.as_view(), name='home'),
 
     path('user/profile/', UserProfileView.as_view(), name='user_profile'),
+    path('user/organisation/', OrganisationProfileView.as_view(), name='organisation_profile'),
     path('user/edit/', UserEditView.as_view(), name='user_edit'),
     path('user/notifications/', UserNotificationsView.as_view(), name='user_notifications'),
     path('user/management/', UserManagementView.as_view(), name='user_management'),

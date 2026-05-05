@@ -52,12 +52,12 @@
             <div style="margin-bottom: 28px;">
                 <label style="display: block; margin-bottom: 8px; color: var(--text-dim);">Equipment</label>
                 <div style="display: flex; flex-wrap: wrap; gap: 10px;" id="equipment-chips">
-                    <div style="background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px;">65" 4K TV <span onclick="this.parentElement.remove()" style="cursor: pointer;">×</span></div>
-                    <div style="background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px;">HDMI + Wireless Casting <span onclick="this.parentElement.remove()" style="cursor: pointer;">×</span></div>
+                    <div style="background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; color: var(--text);">65" 4K TV <span onclick="this.parentElement.remove()" style="cursor: pointer;">×</span></div>
+                    <div style="background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; color: var(--text);">HDMI + Wireless Casting <span onclick="this.parentElement.remove()" style="cursor: pointer;">×</span></div>
                 </div>
                 <div style="margin-top: 12px; display: flex; gap: 8px;">
-                    <input type="text" id="equip-input" placeholder="Add new equipment" 
-                           style="flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
+                          <input type="text" id="equip-input" placeholder="Add new equipment" 
+                              style="flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                     <button type="button" onclick="addEquipment()" class="btn btn-outline">Add</button>
                 </div>
             </div>
@@ -118,7 +118,7 @@
         
         const container = document.getElementById('equipment-chips');
         const chip = document.createElement('div');
-        chip.style.cssText = 'background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;';
+        chip.style.cssText = 'background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text);';
         chip.innerHTML = `${value} <span onclick="this.parentElement.remove()" style="cursor: pointer;">×</span>`;
         container.appendChild(chip);
         input.value = '';

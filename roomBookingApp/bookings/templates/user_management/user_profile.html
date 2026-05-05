@@ -6,8 +6,13 @@
     <h2>Your Profile</h2>
     <p><strong>Name:</strong> {{ user.get_full_name|default:user.username }}</p>
     <p><strong>Email:</strong> {{ user.email }}</p>
+    <p><strong>Role:</strong> {% if user.is_superuser %}Admin{% elif is_organisation_user %}Organisation User{% else %}User{% endif %}</p>
     <p><strong>Organisation:</strong> {{ profile.organisation.name|default:"None" }}</p>
     <p><strong>Total Bookings:</strong> {{ bookings_count }}</p>
+
+    {% if profile.organisation %}
+    <p><a href="{% url 'organisation_profile' %}" class="btn btn-outline" style="margin-top: 10px;">View Organisation Profile</a></p>
+    {% endif %}
 
     <a href="{% url 'user_edit' %}" class="btn btn-primary" style="margin-top: 20px;">Edit Profile</a>
 </div>

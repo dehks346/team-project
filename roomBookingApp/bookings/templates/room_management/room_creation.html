@@ -10,6 +10,22 @@
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
 
+            {% if user.is_superuser %}
+            <div style="margin-bottom: 22px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Assign Organisation (optional)</label>
+                <select name="organisation" style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                    <option value="">-- Shared / Unassigned --</option>
+                    {% for org in organisations %}
+                    <option value="{{ org.pk }}">{{ org.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% elif current_organisation %}
+            <div style="margin-bottom: 22px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim);">
+                This room will be created under <strong style="color: var(--text);">{{ current_organisation.name }}</strong>.
+            </div>
+            {% endif %}
+
             <div style="margin-bottom: 28px;">
                 <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Room Name</label>
                 <input type="text" id="room-name" name="name" placeholder="e.g. Conference Room B" required
@@ -61,8 +77,8 @@
                 </div>
                 <input type="hidden" id="equipment" name="equipment" value="">
                 <div style="margin-top: 12px; display: flex; gap: 8px;">
-                    <input type="text" id="equip-input" placeholder="Add equipment (e.g. 4K TV)" 
-                           style="flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
+                          <input type="text" id="equip-input" placeholder="Add equipment (e.g. 4K TV)" 
+                              style="flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                     <button type="button" onclick="addEquipment()" class="btn btn-outline">Add</button>
                 </div>
             </div>
@@ -110,7 +126,7 @@
         
         const container = document.getElementById('equipment-chips');
         const chip = document.createElement('div');
-        chip.style.cssText = 'background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;';
+        chip.style.cssText = 'background: var(--card); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text);';
         chip.innerHTML = `
             ${value}
             <span onclick="this.parentElement.remove(); syncEquipment()" style="cursor: pointer; font-size: 1.3rem; line-height: 1;">×</span>

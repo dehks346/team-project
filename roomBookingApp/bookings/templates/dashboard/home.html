@@ -26,6 +26,74 @@
     </div>
 </div>
 
+<div class="card" style="margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
+        <h3 style="margin: 0;">Your Access Level</h3>
+        {% if user.is_superuser %}
+        <span class="badge badge-success">Current Role: Admin</span>
+        {% elif request.session.is_org_user %}
+        <span class="badge badge-success">Current Role: Organisation User</span>
+        {% else %}
+        <span class="badge badge-danger">Current Role: Standard User</span>
+        {% endif %}
+    </div>
+
+    <p style="margin-top: 0; color: var(--text-dim);">
+        This explains why some menu items are hidden depending on your account type.
+    </p>
+
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Permission</th>
+                    <th>Standard User</th>
+                    <th>Organisation User</th>
+                    <th>Admin</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>View shared room list</td>
+                    <td>Yes</td>
+                    <td>Yes</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>View organisation profile</td>
+                    <td>No</td>
+                    <td>Yes</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Create rooms</td>
+                    <td>No</td>
+                    <td>Yes</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Manage users</td>
+                    <td>No</td>
+                    <td>Yes</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Room permissions and logs</td>
+                    <td>No</td>
+                    <td>No</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Admin settings and reports</td>
+                    <td>No</td>
+                    <td>No</td>
+                    <td>Yes</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px;">
 
     <div class="card">
@@ -129,7 +197,7 @@
         📅 Quick Create Booking
     </a>
     
-    {% if user.is_superuser or request.session.debug_no_login %}
+    {% if user.is_superuser or request.session.is_org_user or request.session.debug_no_login %}
     <a href="{% url 'room_creation' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 14px 28px;">
         🏠 Quick Create Room
     </a>

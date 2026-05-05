@@ -6,7 +6,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.contrib.auth.models import User
 from bookings import views as booking_views
-from bookings.models import Room, Booking, BookingInvitation
+from bookings.models import Room, Booking, BookingInvitation, Organisation
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -68,6 +68,26 @@ class FaceDatasetStateTests(SimpleTestCase):
 
 
 class RegistrationFlowTests(TestCase):
+	def setUp(self):
+		self.leeds_org = Organisation.objects.create(
+			name='Leeds Beckett University',
+			email_address='admin@leedsbeckett.ac.uk',
+			password='hashed-placeholder',
+			unique_access_code='LBU-REG-01',
+			phone_number='0113-111-1111',
+			address='Leeds',
+			fee='0.00',
+		)
+		self.other_org = Organisation.objects.create(
+			name='Acme Labs',
+			email_address='admin@acmelabs.com',
+			password='hashed-placeholder',
+			unique_access_code='ACME-REG-01',
+			phone_number='0207-111-1111',
+			address='London',
+			fee='0.00',
+		)
+
 	def test_register_creates_user_via_website(self):
 		response = self.client.post(
 			reverse('register'),
@@ -87,6 +107,40 @@ class RegistrationFlowTests(TestCase):
 		self.assertEqual(created_user.first_name, 'Alex')
 		self.assertEqual(created_user.last_name, 'Chen')
 		self.assertFalse(created_user.is_superuser)
+
+	def test_register_auto_assigns_organisation_from_email_domain(self):
+		response = self.client.post(
+			reverse('register'),
+			{
+				'name': 'Hamdi Student',
+				'email': 'hamdi@leedsbeckett.ac.uk',
+				'password1': 'StrongPass123!',
+				'password2': 'StrongPass123!',
+				'role': 'user',
+				'organisation': '',
+			},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		created_user = User.objects.get(email='hamdi@leedsbeckett.ac.uk')
+		self.assertEqual(created_user.userprofile.organisation, self.leeds_org)
+
+	def test_register_manual_organisation_overrides_domain_match(self):
+		response = self.client.post(
+			reverse('register'),
+			{
+				'name': 'Taylor Example',
+				'email': 'taylor@leedsbeckett.ac.uk',
+				'password1': 'StrongPass123!',
+				'password2': 'StrongPass123!',
+				'role': 'user',
+				'organisation': str(self.other_org.pk),
+			},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		created_user = User.objects.get(email='taylor@leedsbeckett.ac.uk')
+		self.assertEqual(created_user.userprofile.organisation, self.other_org)
 
 	def test_non_admin_cannot_create_admin_account(self):
 		response = self.client.post(
@@ -284,3 +338,61 @@ class RoomAndBookingPersistenceTests(TestCase):
 		self.assertEqual(response.status_code, 302)
 		invite.refresh_from_db()
 		self.assertEqual(invite.status, 'ACCEPTED')
+
+
+class OrganisationAccessTests(TestCase):
+	def setUp(self):
+		self.organisation = Organisation.objects.create(
+			name='Leeds Beckett University',
+			email_address='admin@leedsbeckett.ac.uk',
+			password='hashed-placeholder',
+			unique_access_code='LBU-001',
+			phone_number='0113-000-0000',
+			address='Leeds, UK',
+			fee='0.00',
+		)
+
+	def test_organisation_user_can_create_room_for_their_org(self):
+		org_user = User.objects.create_user(
+			username='orguser',
+			email='orguser@leedsbeckett.ac.uk',
+			password='StrongPass123!',
+		)
+		org_user.userprofile.organisation = self.organisation
+		org_user.userprofile.save(update_fields=['organisation'])
+
+		self.client.force_login(org_user)
+		response = self.client.post(
+			reverse('room_creation'),
+			{
+				'name': 'Org Study Room',
+				'location': 'Campus Building A',
+				'capacity': '20',
+				'room_type': 'MEET',
+			},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		created_room = Room.objects.get(name='Org Study Room')
+		self.assertEqual(created_room.organisation, self.organisation)
+
+	def test_regular_user_cannot_create_room(self):
+		regular_user = User.objects.create_user(
+			username='regularuser',
+			email='regular@example.com',
+			password='StrongPass123!',
+		)
+
+		self.client.force_login(regular_user)
+		response = self.client.post(
+			reverse('room_creation'),
+			{
+				'name': 'Should Not Exist',
+				'location': 'Campus Building B',
+				'capacity': '10',
+				'room_type': 'MEET',
+			},
+		)
+
+		self.assertNotEqual(response.status_code, 200)
+		self.assertFalse(Room.objects.filter(name='Should Not Exist').exists())

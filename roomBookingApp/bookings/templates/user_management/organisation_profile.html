@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Organisation Profile{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 1000px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; flex-wrap: wrap; margin-bottom: 22px;">
+        <div>
+            <h2 style="margin: 0;">Organisation Profile</h2>
+            {% if organisation %}
+            <p style="margin: 8px 0 0; color: var(--text-dim);">{{ organisation.name }}</p>
+            {% endif %}
+        </div>
+
+        {% if user.is_superuser and all_organisations %}
+        <form method="get" style="display: flex; gap: 10px; align-items: center;">
+            <select name="organisation" style="padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); min-width: 260px;">
+                <option value="">Select organisation...</option>
+                {% for org in all_organisations %}
+                <option value="{{ org.pk }}" {% if organisation and org.pk == organisation.pk %}selected{% endif %}>{{ org.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Load</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if organisation %}
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        <div style="background: rgba(255,255,255,0.03); padding: 14px; border-radius: 8px;">
+            <small style="color: var(--text-dim);">Users</small>
+            <div style="font-size: 1.4rem; font-weight: 700;">{{ organisation_users|length }}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); padding: 14px; border-radius: 8px;">
+            <small style="color: var(--text-dim);">Rooms</small>
+            <div style="font-size: 1.4rem; font-weight: 700;">{{ organisation_rooms|length }}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); padding: 14px; border-radius: 8px;">
+            <small style="color: var(--text-dim);">Total Bookings</small>
+            <div style="font-size: 1.4rem; font-weight: 700;">{{ organisation_bookings_count }}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); padding: 14px; border-radius: 8px;">
+            <small style="color: var(--text-dim);">Contact Email</small>
+            <div style="font-size: 1rem; font-weight: 600;">{{ organisation.email_address }}</div>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 18px;">
+        <div class="card" style="margin: 0;">
+            <h3 style="margin-top: 0;">Organisation Members</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in organisation_users %}
+                    <tr>
+                        <td>{{ member.name }}</td>
+                        <td>{{ member.email }}</td>
+                        <td>
+                            {% if member.user.is_superuser %}
+                            <span class="badge" style="background: rgba(239,68,68,0.2); color: var(--danger);">Admin</span>
+                            {% else %}
+                            <span class="badge" style="background: rgba(56,189,248,0.2); color: var(--primary);">Organisation User</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="color: var(--text-dim);">No members assigned.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" style="margin: 0;">
+            <h3 style="margin-top: 0;">Organisation Rooms</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Room</th>
+                        <th>Location</th>
+                        <th>Capacity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room in organisation_rooms %}
+                    <tr>
+                        <td>{{ room.name }}</td>
+                        <td>{{ room.location }}</td>
+                        <td>{{ room.capacity }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="color: var(--text-dim);">No rooms created yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div style="padding: 20px; background: rgba(255,255,255,0.03); border-radius: 8px; color: var(--text-dim);">
+        No organisation profile is linked to this account yet.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

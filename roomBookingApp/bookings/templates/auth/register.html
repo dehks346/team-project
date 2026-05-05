@@ -73,6 +73,20 @@
                 </select>
             </div>
 
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.9rem;">Organisation</label>
+                <select name="organisation"
+                        style="width: 90%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem;">
+                    <option value="">-- No organisation / Personal --</option>
+                    {% for org in organisations %}
+                        <option value="{{ org.pk }}">{{ org.name }}</option>
+                    {% endfor %}
+                </select>
+                <small style="display: block; color: var(--text-dim); margin-top: 6px;">
+                    Leave blank to auto-assign from your email domain (for example, @leedsbeckett... joins Leeds Beckett University).
+                </small>
+            </div>
+
             <div style="margin-bottom: 24px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem;">
                     <input type="checkbox" name="terms" required style="accent-color: var(--primary); width: 18px; height: 18px;">
