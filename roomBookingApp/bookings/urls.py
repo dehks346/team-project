@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     CustomLoginView, CustomRegisterView, CustomPasswordResetView, CustomPasswordResetConfirmView,
     CustomPasswordChangeView, custom_logout, HomeView, UserProfileView, UserEditView,
-    UserNotificationsView, UserManagementView, RoomListView, RoomOverviewView, RoomCreationView,
+    UserNotificationsView, UserManagementView, RoomListView, RoomOverviewView, RoomDetailView, RoomCreationView,
     RoomEditView, RoomPermissionsView, RoomLogView, BookingCreationView, BookingEditView,
     MyBookingsView, BookingInvitationView, FaceEnrollmentView, FaceVerificationView,
     AccessResultView, LiveFeedView, SystemStatusView, AdminGlobalAuditLogView,
@@ -30,6 +30,7 @@ urlpatterns = [
     path('user/management/', UserManagementView.as_view(), name='user_management'),
 
     path('rooms/', RoomListView.as_view(), name='room_list'),
+    path('rooms/<int:room_id>/', RoomDetailView.as_view(), name='room_detail'),
     path('rooms/overview/', RoomOverviewView.as_view(), name='room_overview'),
     path('rooms/create/', RoomCreationView.as_view(), name='room_creation'),
     path('rooms/edit/', RoomEditView.as_view(), name='room_edit'),
@@ -37,7 +38,7 @@ urlpatterns = [
     path('rooms/log/', RoomLogView.as_view(), name='room_log'),
 
     path('bookings/create/', BookingCreationView.as_view(), name='booking_creation'),
-    path('bookings/start/<int:room_id>/', BookingFaceGateView.as_view(), name='booking_face_gate'),
+    path('bookings/start/<str:room_id>/', BookingFaceGateView.as_view(), name='booking_face_gate'),
     path('bookings/edit/', BookingEditView.as_view(), name='booking_edit'),
     path('bookings/my/', MyBookingsView.as_view(), name='my_bookings'),
     path('bookings/invitation/', BookingInvitationView.as_view(), name='booking_invitation'),

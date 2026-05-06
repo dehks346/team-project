@@ -52,7 +52,7 @@
             </div>
 
             <div style="display: flex; gap: 10px;">
-                <a href="{% url 'room_overview' %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
+                <a href="{% url 'room_detail' room.room_id %}" class="btn btn-primary" style="flex: 1; text-align: center;">View Details</a>
                 <a href="{% url 'booking_face_gate' room.room_id %}" class="btn btn-outline" style="flex: 1; text-align: center;">Book Now</a>
             </div>
         </div>

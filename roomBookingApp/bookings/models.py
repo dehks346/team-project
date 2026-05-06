@@ -222,8 +222,16 @@ class Booking(models.Model):
         if is_new:
             Record.objects.create(
                 booking=self,
+                room=self.room,
+                user=self.user,
                 action='BOOKING_CREATED',
-                description=f"Booking created for {self.room.location}"
+                description=f"{self.user.name} created a booking for {self.room.name} at {self.room.location}",
+                details={
+                    'event': 'booking_created',
+                    'room_id': self.room.room_id,
+                    'room_name': self.room.name,
+                    'booking_id': self.booking_id,
+                },
             )
 
     @property

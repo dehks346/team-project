@@ -182,7 +182,7 @@
             {% for room in accessible_rooms %}
             <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
                 <div><strong>{{ room.name }}</strong></div>
-                <a href="{% url 'room_overview' %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
+                <a href="{% url 'room_detail' room.room_id %}" class="btn btn-outline" style="font-size: 0.8rem;">View →</a>
             </div>
             {% empty %}
             <div style="color: var(--text-dim);">No rooms available.</div>

@@ -24,6 +24,25 @@
         </div>
     </div>
 
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--primary);">{{ activity_summary.records_count }}</div>
+            <div style="color: var(--text-dim);">Activity Records</div>
+        </div>
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--success);">{{ activity_summary.bookings_created }}</div>
+            <div style="color: var(--text-dim);">Bookings Created</div>
+        </div>
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;">{{ activity_summary.denied_access }}</div>
+            <div style="color: var(--text-dim);">Denied Access</div>
+        </div>
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--danger);">{{ activity_summary.room_changes }}</div>
+            <div style="color: var(--text-dim);">Room Changes</div>
+        </div>
+    </div>
+
     <table id="audit-table" style="width: 100%;">
         <thead>
             <tr>
@@ -36,51 +55,24 @@
             </tr>
         </thead>
         <tbody id="audit-body">
-            
-            <tr data-severity="info">
-                <td><small>2026-03-07 14:32:15</small></td>
-                <td><strong>Face Recognition Success</strong></td>
-                <td>Alex Chen</td>
-                <td><span class="badge badge-success">INFO</span></td>
-                <td>Access granted to Conference Room A (98% match)</td>
-                <td><small>192.168.1.45 • Raspberry Pi Cam v3</small></td>
+            {% for item in audit_entries %}
+            <tr data-severity="{{ item.severity }}">
+                <td><small>{{ item.timestamp_display }}</small></td>
+                <td><strong>{{ item.action_label }}</strong></td>
+                <td>{{ item.user }}</td>
+                <td>
+                    <span class="badge {% if item.severity == 'critical' %}badge-danger{% elif item.severity == 'warning' %}{% endif %}" {% if item.severity == 'warning' %}style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;"{% endif %}>
+                        {{ item.severity|upper }}
+                    </span>
+                </td>
+                <td>{{ item.details }}</td>
+                <td><small>{{ item.source }} • recent activity</small></td>
             </tr>
-
-            <tr data-severity="warning">
-                <td><small>2026-03-07 13:19:44</small></td>
-                <td><strong>Failed Access Attempt</strong></td>
-                <td>Unknown</td>
-                <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">WARNING</span></td>
-                <td>Face match 42% — Lab 3 door</td>
-                <td><small>10.0.0.78 • iPhone 15</small></td>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">No recent activity yet.</td>
             </tr>
-
-            <tr data-severity="critical">
-                <td><small>2026-03-07 11:05:22</small></td>
-                <td><strong>Booking Cancelled</strong></td>
-                <td>Sarah Lee (Admin)</td>
-                <td><span class="badge badge-danger">CRITICAL</span></td>
-                <td>Conference Room A booking removed by admin</td>
-                <td><small>172.16.0.12 • MacBook Pro</small></td>
-            </tr>
-
-            <tr data-severity="info">
-                <td><small>2026-03-06 22:48:10</small></td>
-                <td><strong>Permission Granted</strong></td>
-                <td>Alex Chen</td>
-                <td><span class="badge badge-success">INFO</span></td>
-                <td>Added Marketing Team to Lab 3</td>
-                <td><small>192.168.1.45 • Desktop</small></td>
-            </tr>
-
-            <tr data-severity="info">
-                <td><small>2026-03-06 09:12:05</small></td>
-                <td><strong>Camera Restarted</strong></td>
-                <td>System</td>
-                <td><span class="badge badge-success">INFO</span></td>
-                <td>Raspberry Pi in Conference Room A rebooted successfully</td>
-                <td><small>127.0.0.1 • RPi 5</small></td>
-            </tr>
+            {% endfor %}
 
         </tbody>
     </table>
@@ -91,7 +83,7 @@
     </div>
 
     <div style="margin-top: 20px; text-align: right; color: var(--text-dim); font-size: 0.85rem;">
-        Showing last 5 entries • Data retention: 90 days
+        Showing recent entries • Activity window: last {{ activity_summary.window_days }} days
     </div>
 
 </div>

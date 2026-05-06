@@ -108,23 +108,19 @@
 </div>
 
 <script>
-    const roomOptionBySlug = {
-        'conference-a': 'conference-a',
-        'lab-3': 'lab-3',
-        'meeting-pod-b': 'meeting-pod-b',
-        'creative-studio': 'creative-studio'
-    };
-
     function preselectRoomFromQuery() {
         const params = new URLSearchParams(window.location.search);
-        const roomSlug = params.get('room');
+        const roomId = params.get('room');
         const select = document.getElementById('room-select');
 
-        if (!roomSlug || !select || !roomOptionBySlug[roomSlug]) {
+        if (!roomId || !select) {
             return;
         }
 
-        select.value = roomOptionBySlug[roomSlug];
+        const hasMatchingOption = Array.from(select.options).some(option => option.value === roomId);
+        if (hasMatchingOption) {
+            select.value = roomId;
+        }
         checkAvailability();
     }
 

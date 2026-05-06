@@ -24,6 +24,27 @@
 
     <div id="notifications-list" style="max-height: 620px; overflow-y: auto;">
 
+        {% if activity_notifications %}
+            {% for activity in activity_notifications %}
+            <div class="notification-item" data-type="{% if activity.action == 'BOOKING_CREATED' %}booking{% elif activity.action == 'ACCESS_ATTEMPT' %}access{% else %}system{% endif %}" data-read="false"
+                 onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer;">
+                <div style="font-size: 1.6rem; width: 40px;">
+                    {% if activity.action == 'BOOKING_CREATED' %}📅{% elif activity.action == 'USER_ADDED' %}👤{% elif activity.action == 'ROOM_MODIFIED' %}🏠{% elif activity.action == 'ACCESS_ATTEMPT' %}🚪{% else %}🛠️{% endif %}
+                </div>
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; gap: 12px;">
+                        <strong>{{ activity.get_action_display }}</strong>
+                        <span class="badge badge-primary" style="font-size: 0.75rem;">{{ activity.timestamp|date:"M d, Y H:i" }}</span>
+                    </div>
+                    <p style="margin: 4px 0 0; color: var(--text-dim);">
+                        {{ activity.description }}
+                    </p>
+                </div>
+                <div class="unread-dot" style="width: 10px; height: 10px; background: var(--primary); border-radius: 50%; flex-shrink: 0; align-self: center;"></div>
+            </div>
+            {% endfor %}
+        {% endif %}
+
         {% if invitations %}
             {% for invitation in invitations %}
             <div class="notification-item" data-type="invite" data-read="{% if invitation.status == 'PENDING' %}false{% else %}true{% endif %}" 
@@ -41,64 +62,11 @@
             </div>
             {% endfor %}
         {% endif %}
-        
-        <div class="notification-item" data-type="booking" data-read="false" 
-             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer;">
-            <div style="font-size: 1.6rem; width: 40px;">📅</div>
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between;">
-                    <strong>Booking confirmed</strong>
-                    <span class="badge badge-success" style="font-size: 0.75rem;">Just now</span>
-                </div>
-                <p style="margin: 4px 0 0; color: var(--text-dim);">
-                    Your booking for <strong>Conference Room A</strong> (Today 14:00–15:30) is confirmed.
-                </p>
-            </div>
-            <div class="unread-dot" style="width: 10px; height: 10px; background: var(--primary); border-radius: 50%; flex-shrink: 0; align-self: center;"></div>
+        {% if not activity_notifications and not invitations %}
+        <div style="padding: 20px; color: var(--text-dim); text-align: center;">
+            No notifications yet.
         </div>
-
-        <div class="notification-item" data-type="access" data-read="false" 
-             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer;">
-            <div style="font-size: 1.6rem; width: 40px;">👤</div>
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between;">
-                    <strong>Access denied</strong>
-                    <span class="badge badge-danger" style="font-size: 0.75rem;">3 min ago</span>
-                </div>
-                <p style="margin: 4px 0 0; color: var(--text-dim);">
-                    Face recognition failed at <strong>Lab 3</strong> (low confidence).
-                </p>
-            </div>
-            <div class="unread-dot" style="width: 10px; height: 10px; background: var(--primary); border-radius: 50%; flex-shrink: 0; align-self: center;"></div>
-        </div>
-
-        <div class="notification-item" data-type="invite" data-read="true" 
-             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer; opacity: 0.75;">
-            <div style="font-size: 1.6rem; width: 40px;">📨</div>
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between;">
-                    <strong>New invite</strong>
-                    <span class="badge badge-success" style="font-size: 0.75rem;">Yesterday</span>
-                </div>
-                <p style="margin: 4px 0 0; color: var(--text-dim);">
-                    Sarah invited you to “Team Sync” in Conference Room A tomorrow.
-                </p>
-            </div>
-        </div>
-
-        <div class="notification-item" data-type="system" data-read="true" 
-             onclick="toggleRead(this)" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; cursor: pointer; opacity: 0.75;">
-            <div style="font-size: 1.6rem; width: 40px;">🛠️</div>
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between;">
-                    <strong>Camera maintenance</strong>
-                    <span class="badge badge-success" style="font-size: 0.75rem;">Feb 26</span>
-                </div>
-                <p style="margin: 4px 0 0; color: var(--text-dim);">
-                    Raspberry Pi camera in Lab 3 was restarted successfully.
-                </p>
-            </div>
-        </div>
+        {% endif %}
 
     </div>
 

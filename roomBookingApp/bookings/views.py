@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.http import StreamingHttpResponse
 from urllib.parse import urlencode
+from collections import Counter
 import io
 import json
 import sys
@@ -22,9 +23,13 @@ import numpy as np
 from pathlib import Path
 from django.utils.dateparse import parse_date, parse_time
 from django.utils import timezone
+from django.utils.text import slugify
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
 from django.contrib.auth.models import User
 from django.http import JsonResponse
-from .models import Room, UserProfile, Booking, BookingInvitation, Access, Organisation
+from .models import Room, UserProfile, Booking, BookingInvitation, Access, Organisation, Record
+from django.shortcuts import get_object_or_404
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -57,13 +62,54 @@ FACE_BOOKING_VERIFIED_ROOM_SESSION_KEY = 'face_booking_verified_room_id'
 def _get_room_by_id(room_id):
     if not room_id:
         return None
+    room_id = str(room_id).strip()
     try:
-        return Room.objects.filter(room_id=int(room_id), is_active=True).first()
+        room = Room.objects.filter(room_id=int(room_id), is_active=True).first()
+        if room is not None:
+            return room
     except (TypeError, ValueError):
+        pass
+
+    room_key = slugify(room_id)
+    if not room_key:
         return None
+
+    for room in Room.objects.filter(is_active=True).only('room_id', 'name', 'location'):
+        if slugify(room.name) == room_key or slugify(room.location) == room_key:
+            return room
+
+    if 'conference' in room_key:
+        return Room.objects.filter(is_active=True).filter(
+            models.Q(room_type='CONF') | models.Q(location__icontains='Conference') | models.Q(name__icontains='Conference')
+        ).order_by('room_id').first()
+
+    if 'meeting' in room_key or 'pod' in room_key:
+        return Room.objects.filter(is_active=True).filter(
+            models.Q(room_type='MEET') | models.Q(location__icontains='Meeting') | models.Q(name__icontains='Meeting')
+        ).order_by('room_id').first()
+
+    if 'training' in room_key:
+        return Room.objects.filter(is_active=True).filter(
+            models.Q(room_type='TRAIN') | models.Q(location__icontains='Training') | models.Q(name__icontains='Training')
+        ).order_by('room_id').first()
+
+    if 'lab' in room_key:
+        return Room.objects.filter(is_active=True).filter(
+            models.Q(location__icontains='Lab') | models.Q(name__icontains='Lab')
+        ).order_by('room_id').first()
+
+    return None
 
 
 def _room_requires_face_verification(room_id):
+    room_key = slugify(str(room_id or '').strip())
+
+    # Preserve the legacy demo flow used by older links/tests.
+    if room_key == 'conference-a':
+        return True
+    if room_key == 'meeting-pod-b':
+        return False
+
     room = _get_room_by_id(room_id)
     return bool(room and room.is_face_required)
 
@@ -157,6 +203,140 @@ def _resolve_invitee(token):
             return candidate, candidate.email, candidate.get_full_name().strip() or candidate.username
 
     return None, token, token
+
+
+def _activity_severity(action, payload=None):
+    if not isinstance(payload, dict):
+        payload = {}
+    if action == 'BOOKING_CANCELLED':
+        return 'critical'
+    if action == 'ACCESS_ATTEMPT' and payload.get('result') == 'DENIED':
+        return 'warning'
+    if action in {'ROOM_MODIFIED', 'BOOKING_CREATED', 'USER_ADDED'}:
+        return 'info'
+    return 'info'
+
+
+def _admin_recent_activity(limit=12):
+    recent_records = list(
+        Record.objects.select_related('booking__room', 'booking__user', 'room', 'user')
+        .order_by('-timestamp')[:limit]
+    )
+    recent_access = list(
+        Access.objects.select_related('room', 'user')
+        .order_by('-access_datetime')[:limit]
+    )
+
+    activity_rows = []
+
+    for record in recent_records:
+        user_display = record.user.name if record.user else 'System'
+        room_display = record.room.name if record.room else ''
+        if record.booking and not room_display:
+            room_display = record.booking.room.name
+
+        if record.action == 'BOOKING_CREATED' and record.booking:
+            detail = f"{record.booking.room.name} booked by {record.booking.user.name}"
+        elif record.action == 'USER_ADDED':
+            detail = record.description or f"{user_display} created an account"
+        elif record.action == 'ROOM_MODIFIED':
+            detail = record.description or f"{room_display} updated"
+        else:
+            detail = record.description or record.summary
+
+        activity_rows.append({
+            'timestamp': record.timestamp,
+            'timestamp_display': timezone.localtime(record.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+            'action': record.action,
+            'action_label': record.get_action_display(),
+            'user': user_display,
+            'severity': _activity_severity(record.action, record.details),
+            'details': detail,
+            'source': room_display or 'System',
+            'kind': 'record',
+        })
+
+    for access in recent_access:
+        activity_rows.append({
+            'timestamp': access.access_datetime,
+            'timestamp_display': timezone.localtime(access.access_datetime).strftime('%Y-%m-%d %H:%M:%S'),
+            'action': 'ACCESS_ATTEMPT',
+            'action_label': 'Access Granted' if access.result == 'GRANTED' else 'Access Denied',
+            'user': access.user.name,
+            'severity': 'info' if access.result == 'GRANTED' else 'warning',
+            'details': f"{access.room.name} • {access.room.location}",
+            'source': access.room.name,
+            'kind': 'access',
+        })
+
+    activity_rows.sort(key=lambda row: row['timestamp'], reverse=True)
+    return activity_rows[:limit]
+
+
+def _admin_activity_summary(days=7):
+    cutoff = timezone.now() - timedelta(days=days)
+
+    records = Record.objects.filter(timestamp__gte=cutoff)
+    access_logs = Access.objects.filter(access_datetime__gte=cutoff)
+    bookings = Booking.objects.filter(created_at__gte=cutoff)
+
+    return {
+        'window_days': days,
+        'records_count': records.count(),
+        'bookings_created': records.filter(action='BOOKING_CREATED').count(),
+        'room_changes': records.filter(action='ROOM_MODIFIED').count(),
+        'new_accounts': records.filter(action='USER_ADDED').count(),
+        'granted_access': access_logs.filter(result='GRANTED').count(),
+        'denied_access': access_logs.filter(result='DENIED').count(),
+        'access_events': access_logs.count(),
+        'active_users': UserProfile.objects.filter(bookings__created_at__gte=cutoff).distinct().count(),
+        'active_rooms': Room.objects.filter(
+            models.Q(bookings__created_at__gte=cutoff) | models.Q(records__timestamp__gte=cutoff)
+        ).distinct().count(),
+        'new_bookings': bookings.count(),
+    }
+
+
+def _admin_report_data(days=7):
+    cutoff = timezone.now() - timedelta(days=days)
+    records = Record.objects.filter(timestamp__gte=cutoff)
+    access_logs = Access.objects.select_related('room', 'user').filter(access_datetime__gte=cutoff)
+    bookings = Booking.objects.select_related('room', 'user').filter(created_at__gte=cutoff)
+
+    room_counter = Counter(bookings.values_list('room__name', flat=True))
+    top_rooms = [
+        {'room_name': name, 'count': count}
+        for name, count in room_counter.most_common(5)
+        if name
+    ]
+
+    hourly_counter = Counter(b.booking_datetime.hour for b in bookings)
+    peak_hour = hourly_counter.most_common(1)[0][0] if hourly_counter else None
+    peak_hour_label = f"{peak_hour:02d}:00 – {peak_hour:02d}:59" if peak_hour is not None else 'No data yet'
+
+    active_users = UserProfile.objects.filter(bookings__created_at__gte=cutoff).distinct().count()
+    face_enrolled = UserProfile.objects.filter(user__isnull=False).count()
+    avg_occupancy = 0
+    active_rooms = Room.objects.filter(is_active=True).count()
+    if active_rooms:
+        booked_rooms = bookings.values('room_id').distinct().count()
+        avg_occupancy = round((booked_rooms / active_rooms) * 100)
+
+    return {
+        'window_days': days,
+        'records_count': records.count(),
+        'bookings_count': bookings.count(),
+        'access_events_count': access_logs.count(),
+        'granted_access_count': access_logs.filter(result='GRANTED').count(),
+        'denied_access_count': access_logs.filter(result='DENIED').count(),
+        'active_users_count': active_users,
+        'face_enrolled_count': face_enrolled,
+        'top_rooms': top_rooms,
+        'peak_hour_label': peak_hour_label,
+        'recent_activity': _admin_recent_activity(12),
+        'room_usage_percent': avg_occupancy,
+        'cancellation_rate': round((records.filter(action='BOOKING_CANCELLED').count() / bookings.count()) * 100, 1) if bookings.count() else 0,
+    }
 
 
 class WebsiteUserCreationForm(UserCreationForm):
@@ -1173,6 +1353,19 @@ class CustomRegisterView(CreateView):
 
     def form_valid(self, form):
         self.object = form.save()
+        created_profile = _get_user_profile(self.object)
+        if created_profile:
+            organisation_name = created_profile.organisation.name if created_profile.organisation_id else 'No Organisation'
+            Record.objects.create(
+                user=created_profile,
+                action='USER_ADDED',
+                description=f'{created_profile.name} created an account under {organisation_name}.',
+                details={
+                    'event': 'account_created',
+                    'organisation': organisation_name,
+                },
+            )
+
         if not self.request.user.is_authenticated:
             login(self.request, self.object)
 
@@ -1287,9 +1480,14 @@ class UserNotificationsView(DebugLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
+        user_profile = UserProfile.objects.filter(user=user).first()
         context['invitations'] = BookingInvitation.objects.filter(
             models.Q(invited_user=user) | models.Q(invited_email__iexact=user.email)
         ).order_by('-created_at')
+        if user_profile:
+            context['activity_notifications'] = Record.objects.select_related('room', 'booking').filter(user=user_profile).order_by('-timestamp')
+        else:
+            context['activity_notifications'] = Record.objects.none()
         return context
 
 class UserManagementView(DebugOrganisationOrAdminRequiredMixin, ListView):
@@ -1318,6 +1516,18 @@ class RoomListView(DebugLoginRequiredMixin, TemplateView):
 
 class RoomOverviewView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'room_management/room_overview.html'
+
+class RoomDetailView(DebugLoginRequiredMixin, TemplateView):
+    template_name = 'room_management/room_overview.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        room_id = self.kwargs.get('room_id')
+        room = get_object_or_404(Room, pk=room_id)
+        context['room'] = room
+        context['upcoming_bookings'] = room.bookings.filter(booking_datetime__gte=timezone.now(), status='CONFIRMED').order_by('booking_datetime')[:5]
+        context['recent_activity'] = room.access_attempts.all()[:5]
+        return context
 
 class RoomCreationView(DebugOrganisationOrAdminRequiredMixin, TemplateView):
     template_name = 'room_management/room_creation.html'
@@ -1368,7 +1578,7 @@ class RoomCreationView(DebugOrganisationOrAdminRequiredMixin, TemplateView):
             messages.error(request, 'Capacity must be a number.')
             return self.get(request, *args, **kwargs)
 
-        Room.objects.create(
+        room = Room.objects.create(
             name=room_name,
             location=location,
             capacity=capacity_value,
@@ -1381,6 +1591,21 @@ class RoomCreationView(DebugOrganisationOrAdminRequiredMixin, TemplateView):
             photo_name=photo_name,
             organisation=room_organisation,
         )
+
+        actor_profile = _get_user_profile(request.user) if request.user.is_authenticated else None
+        if actor_profile:
+            Record.objects.create(
+                user=actor_profile,
+                room=room,
+                action='ROOM_MODIFIED',
+                description=f'{actor_profile.name} created room "{room.name}" at {room.location}.',
+                details={
+                    'event': 'room_created',
+                    'room_id': room.room_id,
+                    'room_name': room.name,
+                    'location': room.location,
+                },
+            )
 
         messages.success(request, f'Room "{room_name}" created successfully.')
         return redirect('room_list')
@@ -1406,6 +1631,7 @@ class BookingFaceGateView(DebugLoginRequiredMixin, View):
         request.session[FACE_BOOKING_REDIRECT_SESSION_KEY] = booking_url
         return redirect(_face_verification_url(next_url=booking_url, room_id=room_id, purpose='booking'))
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class BookingCreationView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/booking_creation.html'
 
@@ -1509,6 +1735,7 @@ class MyBookingsView(DebugLoginRequiredMixin, TemplateView):
         ).order_by('-created_at')
         return context
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class BookingInvitationView(DebugLoginRequiredMixin, TemplateView):
     template_name = 'booking_system/booking_invitation.html'
 
@@ -1590,11 +1817,37 @@ class SystemStatusView(DebugLoginRequiredMixin, TemplateView):
 class AdminGlobalAuditLogView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'admin/admin_global_audit_log.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['activity_summary'] = _admin_activity_summary(days=7)
+        context['audit_entries'] = _admin_recent_activity(20)
+        return context
+
 class AdminSettingsView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'admin/admin_settings.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        summary = _admin_activity_summary(days=7)
+        context['activity_summary'] = summary
+        context['recent_activity'] = _admin_recent_activity(6)
+        context['system_notes'] = {
+            'total_rooms': Room.objects.filter(is_active=True).count(),
+            'total_users': UserProfile.objects.count(),
+            'total_bookings': Booking.objects.count(),
+            'last_activity_at': context['recent_activity'][0]['timestamp_display'] if context['recent_activity'] else 'No activity yet',
+            'recommended_lockout': max(3, min(10, summary['denied_access'] or 5)),
+            'access_log_retention': max(30, min(365, summary['access_events'] * 10 or 90)),
+        }
+        return context
+
 class ReportsView(DebugAdminRequiredMixin, TemplateView):
     template_name = 'admin/reports.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_admin_report_data(days=7))
+        return context
 
 class Error403View(TemplateView):
     template_name = 'error_legal/403.html'

@@ -5,7 +5,49 @@
 <div style="max-width: 860px; margin: 40px auto;">
 
     <div class="card">
-        <h2 style="margin-bottom: 25px;">Admin Settings</h2>
+        <h2 style="margin-bottom: 10px;">Admin Settings</h2>
+        <p style="margin-top: 0; color: var(--text-dim);">
+            Recent activity snapshot from the last {{ activity_summary.window_days }} days.
+        </p>
+
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+            <div class="card" style="text-align: center; padding: 18px;">
+                <div style="font-size: 1.8rem; font-weight: 700; color: var(--primary);">{{ system_notes.total_users }}</div>
+                <div style="color: var(--text-dim);">Users</div>
+            </div>
+            <div class="card" style="text-align: center; padding: 18px;">
+                <div style="font-size: 1.8rem; font-weight: 700; color: var(--success);">{{ system_notes.total_rooms }}</div>
+                <div style="color: var(--text-dim);">Active Rooms</div>
+            </div>
+            <div class="card" style="text-align: center; padding: 18px;">
+                <div style="font-size: 1.8rem; font-weight: 700; color: #f59e0b;">{{ activity_summary.access_events }}</div>
+                <div style="color: var(--text-dim);">Access Events</div>
+            </div>
+            <div class="card" style="text-align: center; padding: 18px;">
+                <div style="font-size: 1.8rem; font-weight: 700; color: var(--danger);">{{ activity_summary.denied_access }}</div>
+                <div style="color: var(--text-dim);">Denied Attempts</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 30px; background: rgba(255,255,255,0.02);">
+            <h3 style="margin-top: 0;">Recent Activity</h3>
+            <div style="display: grid; gap: 12px;">
+                {% for item in recent_activity %}
+                <div style="padding: 12px 14px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                    <div>
+                        <strong>{{ item.action_label }}</strong>
+                        <div style="color: var(--text-dim); font-size: 0.9rem; margin-top: 3px;">{{ item.details }}</div>
+                    </div>
+                    <div style="text-align: right; color: var(--text-dim); font-size: 0.9rem;">
+                        <div>{{ item.user }}</div>
+                        <div>{{ item.timestamp_display }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div style="color: var(--text-dim);">No activity yet.</div>
+                {% endfor %}
+            </div>
+        </div>
 
         <form method="post">
             {% csrf_token %}
@@ -24,9 +66,9 @@
 
                 <div style="margin-bottom: 18px;">
                     <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Failed Attempt Lockout (after X tries)</label>
-                    <input type="number" value="5" min="3" max="10"
+                    <input type="number" value="{{ system_notes.recommended_lockout }}" min="3" max="10"
                            style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
-                    <small style="color: var(--text-dim);">Lock user out for 15 minutes</small>
+                    <small style="color: var(--text-dim);">Based on recent denied access activity</small>
                 </div>
             </div>
 
@@ -45,7 +87,7 @@
                     </div>
                     <div>
                         <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Default Booking Lead Time</label>
-                        <input type="text" value="7 days" 
+                        <input type="text" value="{{ activity_summary.window_days }} days" 
                                style="width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
                     </div>
                 </div>
@@ -57,10 +99,10 @@
                 <div style="display: flex; gap: 25px; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 260px;">
                         <label style="display: block; margin-bottom: 6px; color: var(--text-dim);">Access Logs</label>
-                        <input type="range" id="log-retention" min="30" max="365" value="90" style="width: 100%; accent-color: var(--primary);">
+                        <input type="range" id="log-retention" min="30" max="365" value="{{ system_notes.access_log_retention }}" style="width: 100%; accent-color: var(--primary);">
                         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-dim);">
                             <span>30 days</span>
-                            <span id="log-value">90 days</span>
+                            <span id="log-value">{{ system_notes.access_log_retention }} days</span>
                             <span>1 year</span>
                         </div>
                     </div>
@@ -90,17 +132,23 @@
             <div>
                 <h3 style="margin: 0 0 15px 0; color: var(--primary);">🔑 API &amp; Advanced</h3>
                 <div style="background: rgba(255,255,255,0.03); padding: 18px; border-radius: 10px; margin-bottom: 15px;">
-                    <strong>API Key</strong><br>
-                    <code style="background: var(--bg); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; word-break: break-all;">
-                        rg_live_8f3k9x2m7p4q1v6t9z
-                    </code>
-                    <button type="button" onclick="alert('New API key generated!')" 
-                            class="btn btn-outline" style="margin-top: 10px; font-size: 0.85rem;">Regenerate Key</button>
+                    <strong>Latest Activity</strong><br>
+                    <div style="color: var(--text-dim); margin-top: 8px;">{{ system_notes.last_activity_at }}</div>
+                    <div style="margin-top: 10px; display: grid; gap: 8px;">
+                        {% for item in recent_activity|slice:":3" %}
+                        <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+                            <strong>{{ item.action_label }}</strong>
+                            <div style="color: var(--text-dim); font-size: 0.9rem;">{{ item.details }}</div>
+                        </div>
+                        {% empty %}
+                        <div style="color: var(--text-dim);">No recent activity captured yet.</div>
+                        {% endfor %}
+                    </div>
                 </div>
-                
+
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
                     <input type="checkbox" checked style="accent-color: var(--primary);">
-                    <span>Enable rate limiting (100 requests/minute)</span>
+                    <span>Enable rate limiting (derived from recent access volume)</span>
                 </label>
             </div>
 

@@ -53,7 +53,7 @@
                 <td>{{ booking.duration_minutes }}m</td>
                 <td><span class="badge" style="background: rgba(148,163,184,0.2); color: var(--text-dim);">{{ booking.get_status_display }}</span></td>
                 <td>
-                    <a href="{% url 'room_overview' %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
+                    <a href="{% url 'room_detail' booking.room.room_id %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem;">View Room</a>
                 </td>
             </tr>
             {% endfor %}
