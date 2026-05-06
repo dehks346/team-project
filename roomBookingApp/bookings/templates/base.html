@@ -154,9 +154,11 @@
         {% if request.session.debug_no_login %}
         <span class="badge badge-success" style="margin-bottom: 12px; display: inline-block;">Debug Mode: ON</span>
         {% endif %}
+        {% if user.is_superuser or request.session.debug_no_login %}
         <a href="{% url 'toggle_debug' %}?next={{ request.path }}" class="nav-link">
             ⚙️ Toggle Debug Mode
         </a>
+        {% endif%}
 
         <div class="nav-section">
             <h3>Core</h3>
